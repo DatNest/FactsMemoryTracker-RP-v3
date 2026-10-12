@@ -298,10 +298,11 @@
             throw new Error('Выбранный Connection Profile не поддерживается для генерации');
         }
 
+        const tokenBudget = Number(maxTokens || profile.maxOutputTokens || 4096);
         const result = await service.sendRequest(
             profile.connectionProfileId,
             messages,
-            Number(maxTokens || profile.maxOutputTokens || 4096),
+            tokenBudget,
             {
                 stream: false,
                 extractData: true,
@@ -309,7 +310,12 @@
                 includeInstruct: true,
             },
         );
-        return extractResponseText(result);
+
+        const text = extractResponseText(result);
+        if (!String(text || '').trim() && typeof result?.reasoning === 'string' && result.reasoning.trim()) {
+            throw new Error(`Модель вернула только reasoning без финального ответа (лимит: ${tokenBudget} токенов). Увеличь «Max tokens» или выбери модель без длинного reasoning.`);
+        }
+        return text;
     }
 
     function extractResponseText(data) {
@@ -335,7 +341,7 @@
             const text = await callProfile([
                 { role: 'system', content: 'Верни только JSON. Никакого markdown.' },
                 { role: 'user', content: 'Ответь строго так: {"ok":true}' },
-            ], 96);
+            ], 1024);
             const parsed = parseJsonLoose(text);
             if (parsed?.ok === true) {
                 setStatus('✓ Профиль отвечает и возвращает JSON', 'ok');
