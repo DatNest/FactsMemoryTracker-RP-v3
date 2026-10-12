@@ -1,0 +1,12 @@
+{
+  "display_name": "🧠 Память фактов RP v3",
+  "loading_order": 56,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Clean-room rewrite for SillyTavern RP workflows",
+  "version": "3.0.0-preview",
+  "homePage": "https://github.com/ТВОЙ_НИК/FactsMemoryTracker-RP-v3"
+}
