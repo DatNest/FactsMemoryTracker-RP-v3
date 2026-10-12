@@ -9,7 +9,7 @@
     'use strict';
 
     const MODULE = 'facts_memory_tracker_rp_v3';
-    const VERSION = 4;
+    const VERSION = 5;
     const INJECTION_KEY = `${MODULE}_memory`;
     const PANEL_ID = 'fmt3_memory_panel';
     const SETTINGS_ID = 'fmt3_settings_root';
@@ -154,7 +154,48 @@ CONTRADICTS — новое сыгранное утверждение прямо 
     const DEFAULT_MAX_NEW_ITEMS_NORMAL = 6;
     const DEFAULT_MAX_NEW_ITEMS_BACKFILL = 5;
 
-    const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
+    const LEGACY_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
+
+    const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]
+
+[АКТУАЛЬНОЕ СОСТОЯНИЕ — ИСТИНА НА СЕЙЧАС]
+{{CURRENT}}
+
+[РЕЛЕВАНТНАЯ ПАМЯТЬ — ПОДНЯТА ПО ТРИГГЕРАМ ТЕКУЩЕЙ СЦЕНЫ]
+{{RELEVANT}}
+
+[НЕДАВНИЕ ИЗМЕНЕНИЯ — БЛИЖНИЙ КОНТЕКСТ]
+{{RECENT}}
+
+ПРАВИЛА ИСПОЛЬЗОВАНИЯ:
+— Блок «АКТУАЛЬНОЕ СОСТОЯНИЕ» имеет приоритет над историческим контекстом. Если прошлое описывает старое состояние, считай его контекстом того времени, а не текущей правдой.
+— «РЕЛЕВАНТНАЯ ПАМЯТЬ» может содержать старые события и прежние версии состояний; учитывай их только как прошлый контекст.
+— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».
+— Не раскрывай секреты персонажам только потому, что они присутствуют в памяти.
+— Не заставляй персонажей вспоминать старый факт без естественной связи с текущей сценой.
+— Не достраивай отсутствующие детали и не превращай гипотезы в подтверждённые факты.
+— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.
+— Не упоминай существование этого блока памяти в ролевом ответе.
+[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
+
+    const DEFAULT_CURRENT_TOKEN_BUDGET = 700;
+    const DEFAULT_RELEVANT_TOKEN_BUDGET = 700;
+    const DEFAULT_RECENT_TOKEN_BUDGET = 300;
+    const DEFAULT_RETRIEVAL_MESSAGE_COUNT = 4;
+
+    const LIFECYCLE_SCANNER_NOTE = `СОСТОЯНИЕ ФАКТА ДЛЯ ЖИВОЙ ПАМЯТИ:
+Для каждого NEW/UPDATE по возможности добавляй fact.state.
+Допустимые значения зависят от категории:
+— threads: open | resolved | abandoned
+— promises: active | fulfilled | broken | cancelled
+— relationships: current | historical
+— characters: current | historical
+— secrets: active | revealed | historical
+— knowledge: current | historical
+— events: historical
+— flashbacks: historical
+Если сомневаешься, используй естественный текущий статус: threads=open, promises=active, relationships=current, characters=current, secrets=active, knowledge=current, events/flashbacks=historical.
+Когда прежнее текущее состояние заменяется новым, предпочитай UPDATE существующей записи. Старую версию расширение сохранит в revisions как исторический контекст.`;
 
     const DEFAULT_SCANNER_PROMPT = `Ты — сканер дельты ролевой истории. Следуй правилам курации выше и верни только структурированные атомарные изменения.
 
@@ -191,6 +232,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         "inGameDate": "23 сентября",
         "inGameTime": "14:16",
         "location": "Daily Planet",
+        "state": "open|active|current|historical|resolved|fulfilled|broken|cancelled|revealed|abandoned",
         "sourceIndexes": [12, 13]
       }
     }
@@ -212,7 +254,12 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         curationPrompt: DEFAULT_CURATION_PROMPT,
         injectEnabled: true,
         minImportance: 'medium',
-        maxInjectedFacts: 30,
+        maxInjectedFacts: 30, // legacy compatibility; v3.2 uses token budgets below
+        injectionSchemaVersion: 2,
+        currentTokenBudget: DEFAULT_CURRENT_TOKEN_BUDGET,
+        relevantTokenBudget: DEFAULT_RELEVANT_TOKEN_BUDGET,
+        recentTokenBudget: DEFAULT_RECENT_TOKEN_BUDGET,
+        retrievalMessageCount: DEFAULT_RETRIEVAL_MESSAGE_COUNT,
         autoMarker: false,
         autoFlashback: false,
         autoFlashbackChance: 0,
@@ -371,6 +418,8 @@ CONTRADICTS — новое сыгранное утверждение прямо 
 
     function normalizeProfile(profile) {
         const previousPromptSchemaVersion = Number(profile?.promptSchemaVersion || 0);
+        const previousInjectionSchemaVersion = Number(profile?.injectionSchemaVersion || 0);
+        const previousInjectionTemplate = String(profile?.injectionTemplate || '');
         const normalized = mergeDefaults(profile, DEFAULT_PROFILE());
         if (previousPromptSchemaVersion < 2) {
             normalized.curationPrompt = DEFAULT_CURATION_PROMPT;
@@ -378,6 +427,16 @@ CONTRADICTS — новое сыгранное утверждение прямо 
             normalized.maxNewItemsNormal = DEFAULT_MAX_NEW_ITEMS_NORMAL;
             normalized.maxNewItemsBackfill = DEFAULT_MAX_NEW_ITEMS_BACKFILL;
             normalized.promptSchemaVersion = 2;
+        }
+        if (previousInjectionSchemaVersion < 2) {
+            normalized.currentTokenBudget = DEFAULT_CURRENT_TOKEN_BUDGET;
+            normalized.relevantTokenBudget = DEFAULT_RELEVANT_TOKEN_BUDGET;
+            normalized.recentTokenBudget = DEFAULT_RECENT_TOKEN_BUDGET;
+            normalized.retrievalMessageCount = DEFAULT_RETRIEVAL_MESSAGE_COUNT;
+            if (!previousInjectionTemplate || previousInjectionTemplate === LEGACY_INJECTION_TEMPLATE || previousInjectionTemplate.includes('{{FACTS}}')) {
+                normalized.injectionTemplate = DEFAULT_INJECTION_TEMPLATE;
+            }
+            normalized.injectionSchemaVersion = 2;
         }
         if (!Array.isArray(normalized.facts)) normalized.facts = [];
         return normalized;
@@ -534,6 +593,36 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 260);
     }
 
+    function defaultFactState(category) {
+        const map = {
+            characters: 'current',
+            events: 'historical',
+            secrets: 'active',
+            flashbacks: 'historical',
+            relationships: 'current',
+            promises: 'active',
+            knowledge: 'current',
+            threads: 'open',
+        };
+        return map[normalizeCategory(category)] || 'current';
+    }
+
+    function normalizeFactState(category, value) {
+        const cat = normalizeCategory(category);
+        const v = String(value || '').toLowerCase().trim();
+        const allowed = {
+            characters: ['current', 'historical'],
+            events: ['historical'],
+            secrets: ['active', 'revealed', 'historical'],
+            flashbacks: ['historical'],
+            relationships: ['current', 'historical'],
+            promises: ['active', 'fulfilled', 'broken', 'cancelled'],
+            knowledge: ['current', 'historical'],
+            threads: ['open', 'resolved', 'abandoned'],
+        };
+        return allowed[cat]?.includes(v) ? v : defaultFactState(cat);
+    }
+
     function normalizeFact(raw = {}, sourceFallback = []) {
         const now = Date.now();
         return {
@@ -547,6 +636,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
             inGameDate: normalizeShortText(raw.inGameDate || raw.gameDate || '', 80),
             inGameTime: normalizeShortText(raw.inGameTime || raw.gameTime || '', 40),
             location: normalizeShortText(raw.location || '', 140),
+            state: normalizeFactState(raw.category, raw.state),
             sourceChatIds: normalizeStringArray(raw.sourceChatIds || (raw.sourceChatId ? [raw.sourceChatId] : [])),
             sourceMessageIndexes: Array.isArray(raw.sourceMessageIndexes)
                 ? raw.sourceMessageIndexes.map(Number).filter(Number.isInteger)
@@ -789,7 +879,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         if (!facts.length) return '(память пока пуста)';
         return facts.map(f => {
             const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
-            const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' '); const where = f.location ? ` @ ${f.location}` : ''; return `${f.id} | ${f.category} | ${f.importance} | ${when}${where} | знают: ${known} | ${f.text}`;
+            const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' '); const where = f.location ? ` @ ${f.location}` : ''; return `${f.id} | ${f.category} | ${f.importance} | state=${f.state || defaultFactState(f.category)} | ${when}${where} | знают: ${known} | ${f.text}`;
         }).join('\n');
     }
 
@@ -863,7 +953,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
             ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Максимум ${backfillNewLimit} действительно долговечных NEW-фактов на этот пакет. Не делай сводку: сохраняй отдельные атомарные изменения по правильным категориям.`
             : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${normalNewLimit} действительно долговечных NEW-фактов на этот пакет. Сохраняй атомарно и по специализированным категориям; нормальный результат может быть 0–4.`;
         const userPrompt = `${modeNote}\n\nАКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ (REFERENCE ONLY; НЕ СОХРАНЯЙ ИХ ПОВТОРНО):\n${loreReference}\n\nСУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
-        const scannerSystemPrompt = `${profile.curationPrompt || DEFAULT_CURATION_PROMPT}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}`;
+        const scannerSystemPrompt = `${profile.curationPrompt || DEFAULT_CURATION_PROMPT}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}\n\n${LIFECYCLE_SCANNER_NOTE}`;
         let raw;
         try {
             raw = await callProfile([
@@ -937,6 +1027,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
                     inGameDate: target.inGameDate,
                     inGameTime: target.inGameTime,
                     location: target.location,
+                    state: target.state,
                     sourceChatIds: target.sourceChatIds,
                     sourceMessageIndexes: target.sourceMessageIndexes,
                     updatedAt: target.updatedAt,
@@ -953,6 +1044,9 @@ CONTRADICTS — новое сыгранное утверждение прямо 
                 target.inGameDate = next.inGameDate || target.inGameDate || '';
                 target.inGameTime = next.inGameTime || target.inGameTime || '';
                 target.location = next.location || target.location || '';
+                target.state = Object.prototype.hasOwnProperty.call(rawFact, 'state')
+                    ? normalizeFactState(next.category, rawFact.state)
+                    : (previous.category !== next.category ? defaultFactState(next.category) : (target.state || defaultFactState(next.category)));
                 target.sourceChatIds = [...new Set([...(target.sourceChatIds || []), ...normalizeStringArray(next.sourceChatIds || []), currentChatIdentity()])];
                 target.sourceMessageIndexes = [...new Set([...(target.sourceMessageIndexes || []), ...(next.sourceMessageIndexes || [])])];
                 target.status = 'active';
@@ -1079,27 +1173,198 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         toast('info', 'Курсор сканирования сброшен. Существующие факты не удалены.');
     }
 
+    const MEMORY_STOPWORDS = new Set(`и а но или что это как для при на в во с со к ко от до из у по за над под о об про не ни же бы был была были есть его ее её их он она они мы вы ты я мне тебе ему ей нам вам им этот эта эти того уже еще ещё только когда где кто чем который которая которые потому поэтому тут там сюда туда после перед между через если то ли да нет очень просто потом сейчас сегодня вчера завтра снова опять также такой такая такие свой свою свои себя себе чтобы либо`.split(/\s+/));
+
+    function approxTokenCount(text) {
+        const value = String(text || '');
+        return value ? Math.max(1, Math.ceil(value.length / 3.2)) : 0;
+    }
+
+    function lexicalUnits(text) {
+        const words = String(text || '').toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) || [];
+        const out = new Set();
+        for (const raw of words) {
+            const w = raw.replace(/^[-_]+|[-_]+$/g, '');
+            if (!w || MEMORY_STOPWORDS.has(w) || /^\d+$/.test(w)) continue;
+            out.add(w);
+            // Very light prefix matching makes Russian inflections less brittle without a stemmer.
+            if (w.length >= 6) out.add(`~${w.slice(0, 5)}`);
+        }
+        return out;
+    }
+
+    function recentSceneText(messageCount) {
+        const chat = ctx()?.chat || [];
+        const n = Math.max(1, Math.min(12, Number(messageCount || DEFAULT_RETRIEVAL_MESSAGE_COUNT)));
+        return chat.slice(-n).map(m => `${m?.name || ''}: ${String(m?.mes || '')}`).join('\n');
+    }
+
+    function factNewestMessageIndex(f) {
+        const list = Array.isArray(f?.sourceMessageIndexes) ? f.sourceMessageIndexes.filter(Number.isInteger) : [];
+        return list.length ? Math.max(...list) : -1;
+    }
+
+    function formatMemoryFactLine(f, { historical = false } = {}) {
+        const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
+        const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' ');
+        const where = f.location ? ` @ ${f.location}` : '';
+        const stamp = when || where ? `[${when}${where}]` : '';
+        const state = f.state ? `[${f.state}]` : '';
+        const history = historical ? '[РАНЬШЕ]' : '';
+        return `- ${history}[${CATEGORIES[f.category]?.short || f.category}]${state}${stamp}[знают: ${known}] ${f.text}`;
+    }
+
+    function isCurrentStateFact(f) {
+        if (!f || f.status !== 'active' || f.enabled === false) return false;
+        const state = f.state || defaultFactState(f.category);
+        switch (f.category) {
+            case 'threads': return state === 'open';
+            case 'promises': return state === 'active';
+            case 'relationships': return state === 'current';
+            case 'secrets': return state === 'active';
+            case 'characters': return state === 'current';
+            default: return false;
+        }
+    }
+
+    function buildHistoricalRevisionCandidates(facts) {
+        const out = [];
+        for (const f of facts) {
+            const revisions = Array.isArray(f.revisions) ? f.revisions : [];
+            revisions.forEach((rev, i) => {
+                if (!rev?.text) return;
+                out.push({
+                    ...f,
+                    ...rev,
+                    id: `${f.id}:revision:${i}`,
+                    parentFactId: f.id,
+                    state: rev.state || 'historical',
+                    isRevision: true,
+                    status: 'active',
+                    enabled: true,
+                });
+            });
+        }
+        return out;
+    }
+
+    function relevanceScore(f, queryText, queryUnits) {
+        if (!f?.text) return -Infinity;
+        const factText = `${f.text} ${(f.subjects || []).join(' ')} ${(f.knownBy || []).join(' ')} ${f.location || ''}`;
+        const factUnits = lexicalUnits(factText);
+        let score = 0;
+        for (const u of factUnits) if (queryUnits.has(u)) score += u.startsWith('~') ? 0.8 : 1.2;
+
+        const queryLower = String(queryText || '').toLowerCase();
+        for (const subject of f.subjects || []) {
+            const name = String(subject || '').toLowerCase().trim();
+            if (name && queryLower.includes(name)) score += 7;
+            else for (const u of lexicalUnits(name)) if (queryUnits.has(u)) score += 2.2;
+        }
+        for (const knower of f.knownBy || []) {
+            const name = String(knower || '').toLowerCase().trim();
+            if (name && queryLower.includes(name)) score += 1.5;
+        }
+        for (const u of lexicalUnits(f.location || '')) if (queryUnits.has(u)) score += 1.2;
+
+        if (f.category === 'threads' && (f.state || 'open') === 'open') score += 1.2;
+        if (f.category === 'promises' && (f.state || 'active') === 'active') score += 1;
+        if (f.category === 'secrets') score += 0.8;
+        if (f.importance === 'high') score += 1;
+        else if (f.importance === 'medium') score += 0.35;
+        if (f.isRevision) score -= 1.2;
+        if ((f.sourceChatIds || []).includes(currentChatIdentity())) score += 0.4;
+        return score;
+    }
+
+    function takeWithinTokenBudget(candidates, budget, formatter) {
+        const limit = Math.max(0, Number(budget || 0));
+        const items = [];
+        const lines = [];
+        let tokens = 0;
+        if (!limit) return { items, text: '- (не выбрано)', tokens };
+        for (const item of candidates) {
+            const line = formatter(item);
+            const cost = approxTokenCount(line);
+            if (tokens + cost > limit) continue;
+            items.push(item);
+            lines.push(line);
+            tokens += cost;
+        }
+        return { items, text: lines.length ? lines.join('\n') : '- (нет подходящих фактов)', tokens };
+    }
+
+    function buildMemoryPlan() {
+        const p = memoryProfile();
+        const facts = profileFacts().filter(f => f.status === 'active' && f.enabled !== false);
+        if (!p) {
+            const empty = { items: [], text: '- (нет)', tokens: 0 };
+            return { current: empty, relevant: empty, recent: empty, totalTokens: 0 };
+        }
+        const minRank = importanceRank(p.minImportance || 'medium');
+        const eligible = facts.filter(f => importanceRank(f.importance) >= minRank);
+
+        // Current truth is small and always-on: open threads, active promises/secrets,
+        // current relationship states and current durable character-state facts.
+        const categoryPriority = { promises: 0, secrets: 1, threads: 2, relationships: 3, characters: 4 };
+        const currentCandidates = eligible
+            .filter(isCurrentStateFact)
+            .sort((a, b) => (categoryPriority[a.category] ?? 9) - (categoryPriority[b.category] ?? 9)
+                || importanceRank(b.importance) - importanceRank(a.importance)
+                || factNewestMessageIndex(b) - factNewestMessageIndex(a)
+                || b.updatedAt - a.updatedAt);
+        const current = takeWithinTokenBudget(currentCandidates, p.currentTokenBudget, f => formatMemoryFactLine(f));
+        const usedIds = new Set(current.items.map(f => f.id));
+
+        // Recent context is strictly from the currently open chat, not every chat sharing the profile.
+        const currentChat = currentChatIdentity();
+        const recentCandidates = eligible
+            .filter(f => !usedIds.has(f.id) && (f.sourceChatIds || []).includes(currentChat))
+            .sort((a, b) => factNewestMessageIndex(b) - factNewestMessageIndex(a) || b.updatedAt - a.updatedAt);
+        const recent = takeWithinTokenBudget(recentCandidates, p.recentTokenBudget, f => formatMemoryFactLine(f));
+        recent.items.forEach(f => usedIds.add(f.id));
+
+        // Relevant old memory is retrieved locally from the last few RP messages.
+        const queryText = recentSceneText(p.retrievalMessageCount);
+        const queryUnits = lexicalUnits(queryText);
+        const temporalCue = /(помн|раньше|тогда|прошл|вчера|когда-то|впервые)/iu.test(queryText);
+        const history = buildHistoricalRevisionCandidates(eligible);
+        const relevantCandidates = [...eligible, ...history]
+            .filter(f => !usedIds.has(f.id))
+            .map(f => ({ f, score: relevanceScore(f, queryText, queryUnits) }))
+            .filter(x => x.score >= (temporalCue ? 1.8 : 2.6))
+            .sort((a, b) => b.score - a.score
+                || factNewestMessageIndex(b.f) - factNewestMessageIndex(a.f)
+                || b.f.updatedAt - a.f.updatedAt)
+            .map(x => x.f);
+        const relevant = takeWithinTokenBudget(relevantCandidates, p.relevantTokenBudget, f => formatMemoryFactLine(f, { historical: !!f.isRevision || !isCurrentStateFact(f) }));
+
+        return {
+            current,
+            relevant,
+            recent,
+            queryText,
+            totalTokens: current.tokens + relevant.tokens + recent.tokens,
+        };
+    }
+
     function buildInjection() {
         const p = memoryProfile();
         const st = chatState();
         if (!p?.injectEnabled || !st) return '';
-        const facts = profileFacts();
-        const minRank = importanceRank(p.minImportance || 'medium');
-        const selected = facts
-            .filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank)
-            .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.updatedAt - a.updatedAt)
-            .slice(0, Math.max(1, Number(p.maxInjectedFacts || 30)));
-
-        const factLines = selected.length
-            ? selected.map(f => {
-                const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
-                const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' '); const where = f.location ? ` @ ${f.location}` : ''; const stamp = when || where ? `[${when}${where}]` : ''; return `- [${String(f.importance).toUpperCase()}][${CATEGORIES[f.category]?.short || f.category}]${stamp}[знают: ${known}] ${f.text}`;
-            }).join('\n')
-            : '- (нет активных фактов выше выбранного порога)';
-
-        let injection = String(p.injectionTemplate || DEFAULT_INJECTION_TEMPLATE).replace('{{FACTS}}', factLines);
+        const plan = buildMemoryPlan();
+        let template = String(p.injectionTemplate || DEFAULT_INJECTION_TEMPLATE);
+        if (template.includes('{{FACTS}}') && !template.includes('{{CURRENT}}')) {
+            template = template.replace('{{FACTS}}', `[АКТУАЛЬНОЕ СОСТОЯНИЕ]\n${plan.current.text}\n\n[РЕЛЕВАНТНАЯ ПАМЯТЬ]\n${plan.relevant.text}\n\n[НЕДАВНИЕ ИЗМЕНЕНИЯ]\n${plan.recent.text}`);
+        } else {
+            template = template
+                .replaceAll('{{CURRENT}}', plan.current.text)
+                .replaceAll('{{RELEVANT}}', plan.relevant.text)
+                .replaceAll('{{RECENT}}', plan.recent.text);
+        }
+        let injection = template;
         if (st.pendingFlashbackFactId) {
-            const f = facts.find(x => x.id === st.pendingFlashbackFactId);
+            const f = profileFacts().find(x => x.id === st.pendingFlashbackFactId);
             if (f) {
                 injection += `\n\n[ОДНОРАЗОВЫЙ ФЛЕШБЕК]\nЕсли это естественно для текущей сцены и персонаж действительно знает этот факт, мягко дай ему эмоционально вспомнить или учесть: ${f.text}\nНе ломай сцену и не раскрывай чужое скрытое знание.\n[/ОДНОРАЗОВЫЙ ФЛЕШБЕК]`;
             }
@@ -1193,7 +1458,12 @@ CONTRADICTS — новое сыгранное утверждение прямо 
             await onChatChanged();
         });
         if (et.MESSAGE_SENT) es.on(et.MESSAGE_SENT, async () => {
+            refreshInjection();
             await maybeAutoFlashback();
+        });
+        if (et.GENERATION_STARTED) es.on(et.GENERATION_STARTED, () => {
+            // Rebuild trigger-based retrieval against the latest user message immediately before generation.
+            refreshInjection();
         });
         if (et.MESSAGE_RECEIVED) es.on(et.MESSAGE_RECEIVED, async () => {
             const chat = ctx()?.chat || [];
@@ -1307,15 +1577,22 @@ CONTRADICTS — новое сыгранное утверждение прямо 
             </details>
 
             <details class="fmt3-section">
-              <summary class="fmt3-section-title">💉 ИНЪЕКЦИЯ</summary>
+              <summary class="fmt3-section-title">💉 ИНЪЕКЦИЯ / УМНАЯ ПАМЯТЬ</summary>
               <div class="fmt3-section-body">
                 <div class="fmt3-grid2">
                   <label>Важность ≥
                     <select id="fmt3_min_importance"><option value="high">High</option><option value="medium">Medium+</option><option value="low">Все</option></select>
                   </label>
-                  <label>Макс. фактов<input id="fmt3_max_facts" type="number" min="1" max="200"></label>
+                  <label>Сообщений для триггеров<input id="fmt3_retrieval_messages" type="number" min="1" max="12"></label>
                 </div>
-                <details class="fmt3-advanced"><summary>Шаблон промпта {{FACTS}}</summary><textarea id="fmt3_injection_template" rows="9"></textarea></details>
+                <div class="fmt3-grid4">
+                  <label>Актуальное, ток.<input id="fmt3_current_tokens" type="number" min="0" max="4000" step="50"></label>
+                  <label>Релевантное, ток.<input id="fmt3_relevant_tokens" type="number" min="0" max="6000" step="50"></label>
+                  <label>Недавнее, ток.<input id="fmt3_recent_tokens" type="number" min="0" max="3000" step="50"></label>
+                  <label>Итого ориентир<input id="fmt3_total_memory_tokens" type="text" readonly></label>
+                </div>
+                <div class="fmt3-hint">Каждый ход всегда получает компактное актуальное состояние; старые факты поднимаются локально по именам и темам последних сообщений; ещё небольшой бюджет отводится самым свежим изменениям. Дополнительный AI-запрос для retrieval не используется.</div>
+                <details class="fmt3-advanced"><summary>Шаблон {{CURRENT}} / {{RELEVANT}} / {{RECENT}}</summary><textarea id="fmt3_injection_template" rows="16"></textarea></details>
               </div>
             </details>
 
@@ -1559,7 +1836,12 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         document.getElementById('fmt3_auto_marker').checked = !!p.autoMarker;
         document.getElementById('fmt3_inject_enabled').checked = !!p.injectEnabled;
         document.getElementById('fmt3_min_importance').value = p.minImportance;
-        document.getElementById('fmt3_max_facts').value = p.maxInjectedFacts;
+        document.getElementById('fmt3_retrieval_messages').value = p.retrievalMessageCount ?? DEFAULT_RETRIEVAL_MESSAGE_COUNT;
+        document.getElementById('fmt3_current_tokens').value = p.currentTokenBudget ?? DEFAULT_CURRENT_TOKEN_BUDGET;
+        document.getElementById('fmt3_relevant_tokens').value = p.relevantTokenBudget ?? DEFAULT_RELEVANT_TOKEN_BUDGET;
+        document.getElementById('fmt3_recent_tokens').value = p.recentTokenBudget ?? DEFAULT_RECENT_TOKEN_BUDGET;
+        const totalMemoryTokens = document.getElementById('fmt3_total_memory_tokens');
+        if (totalMemoryTokens) totalMemoryTokens.value = String(Number(p.currentTokenBudget || 0) + Number(p.relevantTokenBudget || 0) + Number(p.recentTokenBudget || 0));
         document.getElementById('fmt3_injection_template').value = p.injectionTemplate;
         document.getElementById('fmt3_auto_flashback').checked = !!p.autoFlashback;
         document.getElementById('fmt3_flashback_chance').value = p.autoFlashbackChance;
@@ -1710,6 +1992,7 @@ CONTRADICTS — новое сыгранное утверждение прямо 
               <summary>детали</summary>
               <div class="fmt3-fact-detail-body">
                 <div class="fmt3-fact-meta">Раздел: ${escapeHtml(CATEGORIES[f.category]?.label || f.category)}</div>
+                <div class="fmt3-fact-meta">Состояние: ${escapeHtml(f.state || defaultFactState(f.category))}</div>
                 <div class="fmt3-fact-meta">Знают: ${escapeHtml(known)}</div>
                 <div class="fmt3-fact-meta">Участники: ${escapeHtml(subjects)}</div>
                 ${f.status === 'conflict' ? `<div class="fmt3-conflict">⚠ Конфликтует с ${escapeHtml(f.contradicts || 'неизвестным фактом')}</div>` : ''}
@@ -1751,11 +2034,13 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         const injectionLine = document.getElementById('fmt3_panel_injection');
         if (injectionLine) {
             const p = memoryProfile();
-            const minRank = importanceRank(p?.minImportance || 'medium');
-            const injected = profileAllFacts.filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank).slice(0, Number(p?.maxInjectedFacts || 30)).length;
+            const plan = buildMemoryPlan();
+            const injected = plan.current.items.length + plan.relevant.items.length + plan.recent.items.length;
             injectionLine.dataset.on = String(!!p?.injectEnabled && injected > 0);
             injectionLine.textContent = p?.injectEnabled
-                ? (injected ? `Инъекция активна · в промпт попадёт до ${injected} фактов` : 'Инъекция пуста — нет активных фактов выше порога')
+                ? (injected
+                    ? `Инъекция: актуальное ${plan.current.items.length} · релевантное ${plan.relevant.items.length} · недавнее ${plan.recent.items.length} · ~${plan.totalTokens} ток.`
+                    : 'Инъекция пуста — нет подходящих фактов выше порога')
                 : 'Инъекция выключена';
         }
 
@@ -1944,7 +2229,10 @@ CONTRADICTS — новое сыгранное утверждение прямо 
         byId('fmt3_auto_marker').addEventListener('change', e => updateCurrentProfile('autoMarker', e.target.checked));
         byId('fmt3_inject_enabled').addEventListener('change', e => updateCurrentProfile('injectEnabled', e.target.checked, true));
         byId('fmt3_min_importance').addEventListener('change', e => updateCurrentProfile('minImportance', e.target.value, true));
-        byId('fmt3_max_facts').addEventListener('change', e => updateCurrentProfile('maxInjectedFacts', Number(e.target.value), true));
+        byId('fmt3_retrieval_messages').addEventListener('change', e => updateCurrentProfile('retrievalMessageCount', Math.max(1, Math.min(12, Number(e.target.value))), true));
+        byId('fmt3_current_tokens').addEventListener('change', e => updateCurrentProfile('currentTokenBudget', Math.max(0, Number(e.target.value)), true));
+        byId('fmt3_relevant_tokens').addEventListener('change', e => updateCurrentProfile('relevantTokenBudget', Math.max(0, Number(e.target.value)), true));
+        byId('fmt3_recent_tokens').addEventListener('change', e => updateCurrentProfile('recentTokenBudget', Math.max(0, Number(e.target.value)), true));
         byId('fmt3_injection_template').addEventListener('change', e => updateCurrentProfile('injectionTemplate', e.target.value, true));
         byId('fmt3_auto_flashback').addEventListener('change', e => updateCurrentProfile('autoFlashback', e.target.checked));
         byId('fmt3_flashback_chance').addEventListener('change', e => updateCurrentProfile('autoFlashbackChance', Number(e.target.value)));
