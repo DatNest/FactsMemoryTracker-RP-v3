@@ -121,6 +121,8 @@
         autoFlashbackChance: 0,
         scannerPrompt: DEFAULT_SCANNER_PROMPT,
         injectionTemplate: DEFAULT_INJECTION_TEMPLATE,
+        // Persistent memory belongs to the MEMORY PROFILE, not to a chat.
+        facts: [],
     });
 
     const DEFAULT_GLOBAL = () => {
@@ -191,6 +193,7 @@
             s.profiles = [p];
             s.defaultProfileId = p.id;
         }
+        for (const profile of s.profiles) normalizeProfile(profile);
         return s;
     }
 
@@ -217,7 +220,9 @@
         return {
             version: VERSION,
             memoryProfileId: '',
+            // Legacy <= 3.0.5 storage. Live memory is profile-scoped now.
             facts: [],
+            legacyFactsMigratedToProfile: false,
             lastScannedMessageIndex: -1,
             scanDirty: false,
             pendingFlashbackFactId: '',
@@ -242,7 +247,7 @@
             const g = globalSettings();
             state.memoryProfileId = g?.scopeBindings?.[currentScopeKey()] || g?.defaultProfileId || g?.profiles?.[0]?.id || '';
         }
-        if (!Array.isArray(state.facts)) state.facts = [];
+        if (!Array.isArray(state.facts)) state.facts = []; // legacy <= 3.0.5 only
         return state;
     }
 
@@ -260,13 +265,44 @@
         const g = globalSettings();
         const st = chatState();
         if (!g || !st) return null;
-        return g.profiles.find(p => p.id === st.memoryProfileId)
+        const profile = g.profiles.find(p => p.id === st.memoryProfileId)
             || g.profiles.find(p => p.id === g.defaultProfileId)
             || g.profiles[0];
+        return profile ? normalizeProfile(profile) : null;
     }
 
     function normalizeProfile(profile) {
-        return mergeDefaults(profile, DEFAULT_PROFILE());
+        const normalized = mergeDefaults(profile, DEFAULT_PROFILE());
+        if (!Array.isArray(normalized.facts)) normalized.facts = [];
+        return normalized;
+    }
+
+    function profileFacts() {
+        const profile = memoryProfile();
+        if (!profile) return [];
+        if (!Array.isArray(profile.facts)) profile.facts = [];
+        return profile.facts;
+    }
+
+    function saveProfileMemory() {
+        const profile = memoryProfile();
+        if (profile) profile.updatedAt = Date.now();
+        saveGlobal();
+    }
+
+    async function migrateLegacyChatFactsToProfileIfSafe() {
+        const st = chatState();
+        const profile = memoryProfile();
+        if (!st || !profile || st.legacyFactsMigratedToProfile) return;
+        const legacy = Array.isArray(st.facts) ? st.facts : [];
+        // Conservative migration: only seed an EMPTY selected profile from this chat.
+        // Never merge a legacy chat into an already populated profile.
+        if (legacy.length && profile.facts.length === 0) {
+            profile.facts = legacy.map(f => normalizeFact(f));
+            saveProfileMemory();
+        }
+        st.legacyFactsMigratedToProfile = true;
+        await saveChatState();
     }
 
     function importanceRank(value) {
@@ -326,8 +362,7 @@
     }
 
     function activeFacts() {
-        const st = chatState();
-        return (st?.facts || []).filter(f => f.status === 'active' && f.enabled !== false);
+        return profileFacts().filter(f => f.status === 'active' && f.enabled !== false);
     }
 
     function factTextKey(text) {
@@ -656,6 +691,7 @@
         }
         const items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
         const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n));
+        if (result.added || result.updated || result.conflicts) saveProfileMemory();
 
         if (updateCursor) {
             st.lastScannedMessageIndex = Math.max(st.lastScannedMessageIndex, end);
@@ -669,8 +705,7 @@
     }
 
     function applyScannerItems(items, sourceFallback) {
-        const st = chatState();
-        const facts = st?.facts || [];
+        const facts = profileFacts();
         const byId = new Map(facts.map(f => [f.id, f]));
         let added = 0, updated = 0, conflicts = 0;
 
@@ -828,8 +863,9 @@
         const p = memoryProfile();
         const st = chatState();
         if (!p?.injectEnabled || !st) return '';
+        const facts = profileFacts();
         const minRank = importanceRank(p.minImportance || 'medium');
-        const selected = (st.facts || [])
+        const selected = facts
             .filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank)
             .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.updatedAt - a.updatedAt)
             .slice(0, Math.max(1, Number(p.maxInjectedFacts || 30)));
@@ -843,7 +879,7 @@
 
         let injection = String(p.injectionTemplate || DEFAULT_INJECTION_TEMPLATE).replace('{{FACTS}}', factLines);
         if (st.pendingFlashbackFactId) {
-            const f = st.facts.find(x => x.id === st.pendingFlashbackFactId);
+            const f = facts.find(x => x.id === st.pendingFlashbackFactId);
             if (f) {
                 injection += `\n\n[ОДНОРАЗОВЫЙ ФЛЕШБЕК]\nЕсли это естественно для текущей сцены и персонаж действительно знает этот факт, мягко дай ему эмоционально вспомнить или учесть: ${f.text}\nНе ломай сцену и не раскрывай чужое скрытое знание.\n[/ОДНОРАЗОВЫЙ ФЛЕШБЕК]`;
             }
@@ -868,14 +904,14 @@
         const raw = String(message?.mes || '');
         if (!raw.includes('[FACT:')) return;
         const regex = /\[FACT:\s*(.*?)\s*\|\s*([^\]]+)\]/gsi;
-        const st = chatState();
+        const facts = profileFacts();
         let match;
         let added = 0;
         while ((match = regex.exec(raw))) {
             const text = String(match[1] || '').trim();
             if (!text) continue;
-            if (st.facts.some(f => factTextKey(f.text) === factTextKey(text))) continue;
-            st.facts.push(normalizeFact({
+            if (facts.some(f => factTextKey(f.text) === factTextKey(text))) continue;
+            facts.push(normalizeFact({
                 text,
                 category: normalizeCategory(match[2]),
                 importance: 'medium',
@@ -885,7 +921,7 @@
             added++;
         }
         if (added) {
-            saveChatState();
+            saveProfileMemory();
             refreshInjection();
             renderAll();
         }
@@ -966,6 +1002,7 @@
     async function onChatChanged() {
         lastKnownChatIdentity = currentChatIdentity();
         chatState();
+        await migrateLegacyChatFactsToProfileIfSafe();
         refreshInjection();
         refreshConnectionProfilesUI();
         renderAll();
@@ -1233,7 +1270,7 @@
         profileSelect.value = p.id;
 
         document.getElementById('fmt3_bind_scope').checked = g.scopeBindings[currentScopeKey()] === p.id;
-        document.getElementById('fmt3_chat_binding').textContent = `Чат: ${ctx()?.chatId || 'не определён'} · профиль меняется автоматически вместе с чатом.`;
+        document.getElementById('fmt3_chat_binding').textContent = `Чат: ${ctx()?.chatId || 'не определён'} · память хранится в профиле «${p.name}» (${profileFacts().length} фактов). Чаты с этим профилем используют эту же память.`;
         const widgetEnabled = document.getElementById('fmt3_widget_enabled');
         const widgetScale = document.getElementById('fmt3_widget_scale');
         const widgetScaleValue = document.getElementById('fmt3_widget_scale_value');
@@ -1263,7 +1300,7 @@
         if (!b) return;
         b.style.display = g?.widgetEnabled === false ? 'none' : '';
         b.style.setProperty('--fmt3-scale', `${Number(g?.widgetScale || 100) / 100}`);
-        const count = chatState()?.facts?.filter(f => f.status === 'active' && f.enabled !== false).length || 0;
+        const count = profileFacts().filter(f => f.status === 'active' && f.enabled !== false).length || 0;
         const n = document.getElementById('fmt3_bubble_count');
         if (n) n.textContent = String(count);
     }
@@ -1273,23 +1310,25 @@
         if (!grid) return;
         const st = chatState();
         if (!st) return;
+        const profile = memoryProfile();
+        const profileAllFacts = profileFacts();
         const search = String(document.getElementById('fmt3_fact_search')?.value || '').toLowerCase().trim();
         const category = document.getElementById('fmt3_fact_category')?.value || 'all';
         const status = document.getElementById('fmt3_fact_status')?.value || 'active';
-        let facts = [...st.facts];
+        let facts = [...profileAllFacts];
         facts = facts.filter(f => (category === 'all' || f.category === category) && (status === 'all' || f.status === status));
         if (search) facts = facts.filter(f => `${f.text} ${(f.subjects || []).join(' ')} ${(f.knownBy || []).join(' ')}`.toLowerCase().includes(search));
         facts.sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.updatedAt - a.updatedAt);
 
         const subtitle = document.getElementById('fmt3_panel_subtitle');
-        const activeCount = st.facts.filter(f => f.status === 'active' && f.enabled !== false).length;
-        if (subtitle) subtitle.textContent = `${memoryProfile()?.name || ''} · ${st.facts.length} фактов · ${activeCount} активных`;
+        const activeCount = profileAllFacts.filter(f => f.status === 'active' && f.enabled !== false).length;
+        if (subtitle) subtitle.textContent = `${profile?.name || ''} · ${profileAllFacts.length} фактов · ${activeCount} активных`;
 
         const injectionLine = document.getElementById('fmt3_panel_injection');
         if (injectionLine) {
             const p = memoryProfile();
             const minRank = importanceRank(p?.minImportance || 'medium');
-            const injected = st.facts.filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank).slice(0, Number(p?.maxInjectedFacts || 30)).length;
+            const injected = profileAllFacts.filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank).slice(0, Number(p?.maxInjectedFacts || 30)).length;
             injectionLine.dataset.on = String(!!p?.injectEnabled && injected > 0);
             injectionLine.textContent = p?.injectEnabled
                 ? (injected ? `Инъекция активна · в промпт попадёт до ${injected} фактов` : 'Инъекция пуста — нет активных фактов выше порога')
@@ -1333,13 +1372,15 @@
         const card = button.closest('.fmt3-fact-card');
         const id = card?.dataset.id;
         const st = chatState();
-        const fact = st?.facts?.find(f => f.id === id);
+        const facts = profileFacts();
+        const fact = facts.find(f => f.id === id);
         if (!fact) return;
         const action = button.dataset.action;
 
         if (action === 'delete') {
             if (!window.confirm('Удалить этот факт?')) return;
-            st.facts = st.facts.filter(f => f.id !== id);
+            const idx = facts.findIndex(f => f.id === id);
+            if (idx >= 0) facts.splice(idx, 1);
         } else if (action === 'toggle') {
             fact.enabled = fact.enabled === false;
             fact.updatedAt = Date.now();
@@ -1359,6 +1400,7 @@
             st.pendingFlashbackFactId = fact.id;
             toast('success', 'Факт будет предложен как мягкий флешбек в следующем ответе.');
         }
+        saveProfileMemory();
         await saveChatState();
         renderAll();
     }
@@ -1367,11 +1409,11 @@
         const el = event.target;
         if (!el.matches('select[data-action="importance"]')) return;
         const id = el.closest('.fmt3-fact-card')?.dataset.id;
-        const fact = chatState()?.facts?.find(f => f.id === id);
+        const fact = profileFacts().find(f => f.id === id);
         if (!fact) return;
         fact.importance = normalizeImportance(el.value);
         fact.updatedAt = Date.now();
-        await saveChatState();
+        saveProfileMemory();
         renderAll();
     }
 
@@ -1440,7 +1482,7 @@
             const g = globalSettings();
             const p = memoryProfile();
             if (g.profiles.length <= 1) return toast('warning', 'Нельзя удалить единственный профиль.');
-            if (!window.confirm(`Удалить профиль «${p.name}»? Факты чата не удалятся.`)) return;
+            if (!window.confirm(`Удалить профиль «${p.name}» вместе с его памятью (${profileFacts().length} фактов)?`)) return;
             g.profiles = g.profiles.filter(x => x.id !== p.id);
             if (g.defaultProfileId === p.id) g.defaultProfileId = g.profiles[0].id;
             for (const [k, v] of Object.entries(g.scopeBindings)) if (v === p.id) delete g.scopeBindings[k];
@@ -1485,13 +1527,16 @@
     }
 
     function exportMemory() {
+        const profile = memoryProfile();
         const payload = {
             format: 'FactsMemoryTracker-RP-v3',
             version: VERSION,
+            scope: 'memory-profile',
             chatId: ctx()?.chatId || '',
-            profileName: memoryProfile()?.name || '',
+            profileId: profile?.id || '',
+            profileName: profile?.name || '',
             exportedAt: new Date().toISOString(),
-            state: deepClone(chatState()),
+            facts: deepClone(profileFacts()),
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1508,19 +1553,19 @@
         if (!file) return;
         try {
             const raw = JSON.parse(await file.text());
-            const incoming = Array.isArray(raw) ? raw : (raw.state?.facts || raw.facts || []);
+            const incoming = Array.isArray(raw) ? raw : (raw.facts || raw.state?.facts || []);
             if (!Array.isArray(incoming)) throw new Error('В файле не найден массив facts');
-            const st = chatState();
-            const existing = new Set(st.facts.map(f => factTextKey(f.text)));
+            const facts = profileFacts();
+            const existing = new Set(facts.map(f => factTextKey(f.text)));
             let added = 0;
             for (const item of incoming) {
                 const fact = normalizeFact(item);
                 if (!fact.text || existing.has(factTextKey(fact.text))) continue;
-                st.facts.push(fact);
+                facts.push(fact);
                 existing.add(factTextKey(fact.text));
                 added++;
             }
-            await saveChatState();
+            saveProfileMemory();
             renderAll();
             toast('success', `Импортировано ${added} новых фактов.`);
         } catch (error) {
@@ -1533,6 +1578,7 @@
         renderBubble();
         renderMemoryPanelShell();
         chatState();
+        migrateLegacyChatFactsToProfileIfSafe();
         refreshConnectionProfilesUI();
         renderAll();
     }
