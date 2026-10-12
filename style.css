@@ -780,3 +780,148 @@ details.fmt3-section + .fmt3-section {
     .fmt3-bulk-select, .fmt3-bulk-actions { width: 100%; }
     .fmt3-bulk-actions select { flex: 1 1 130px; }
 }
+
+/* ---------- 3.1.0 atomic memory / category & chronology views ---------- */
+.fmt3-panel-tools {
+    grid-template-columns: minmax(220px, 1fr) 120px 130px 130px;
+    align-items: center;
+}
+
+.fmt3-fact-grid {
+    display: block;
+}
+
+.fmt3-memory-group {
+    margin: 0 0 16px;
+}
+
+.fmt3-memory-group + .fmt3-memory-group {
+    padding-top: 4px;
+    border-top: 1px solid rgba(104,150,160,.12);
+}
+
+.fmt3-memory-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 4px 8px;
+    color: #aebdc1;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .025em;
+}
+
+.fmt3-memory-group-title span {
+    display: inline-grid;
+    place-items: center;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(92,130,140,.12);
+    color: #72878d;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.fmt3-memory-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fmt3-fact-card.fmt3-fact-compact {
+    padding: 0;
+    border-radius: 10px;
+    background: rgba(17,30,35,.78);
+}
+
+.fmt3-fact-compact-main {
+    display: grid;
+    grid-template-columns: auto auto minmax(0,1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+}
+
+.fmt3-cat-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    font-size: 12px;
+    opacity: .9;
+}
+
+.fmt3-fact-compact-copy {
+    min-width: 0;
+}
+
+.fmt3-fact-stamp {
+    margin-bottom: 2px;
+    color: #6f8990;
+    font-size: 9px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fmt3-fact-card.fmt3-fact-compact .fmt3-fact-text {
+    margin: 0;
+    color: #c4d0d3;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.fmt3-fact-card.fmt3-fact-compact .fmt3-fact-importance {
+    min-width: 76px;
+    height: 26px;
+    min-height: 26px !important;
+}
+
+.fmt3-fact-details {
+    border-top: 1px solid rgba(101,146,156,.10);
+}
+
+.fmt3-fact-details > summary {
+    padding: 5px 10px 6px 48px;
+    color: #61777d;
+    font-size: 9px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.fmt3-fact-details > summary::-webkit-details-marker { display: none; }
+.fmt3-fact-details > summary::before { content: '▸ '; }
+.fmt3-fact-details[open] > summary::before { content: '▾ '; }
+
+.fmt3-fact-detail-body {
+    padding: 0 10px 9px 48px;
+}
+
+.fmt3-fact-detail-body .fmt3-fact-actions {
+    margin-top: 7px;
+}
+
+@media (max-width: 900px) {
+    .fmt3-panel-tools {
+        grid-template-columns: minmax(0,1fr) 115px;
+    }
+}
+
+@media (max-width: 560px) {
+    .fmt3-panel-tools {
+        grid-template-columns: 1fr;
+    }
+    .fmt3-fact-compact-main {
+        grid-template-columns: auto auto minmax(0,1fr);
+    }
+    .fmt3-fact-card.fmt3-fact-compact .fmt3-fact-importance {
+        grid-column: 3;
+        width: 88px;
+        justify-self: end;
+    }
+}

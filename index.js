@@ -9,7 +9,7 @@
     'use strict';
 
     const MODULE = 'facts_memory_tracker_rp_v3';
-    const VERSION = 3;
+    const VERSION = 4;
     const INJECTION_KEY = `${MODULE}_memory`;
     const PANEL_ID = 'fmt3_memory_panel';
     const SETTINGS_ID = 'fmt3_settings_root';
@@ -34,122 +34,148 @@
     };
 
 
-    const DEFAULT_CURATION_PROMPT = `ЖЁСТКИЙ РЕЖИМ КУРАЦИИ ПАМЯТИ.
-Память — НЕ конспект сюжета и НЕ хроника каждого события. Она должна хранить минимальный набор устойчивых фактов, без которых будущая сцена может стать противоречивой, забыть важное знание, обещание, последствие или незакрытую линию.
+    const DEFAULT_CURATION_PROMPT = `КАТЕГОРИЙНЫЙ АТОМАРНЫЙ РЕЖИМ ПАМЯТИ.
 
-ПЕРЕД ДОБАВЛЕНИЕМ КАЖДОГО ITEM мысленно проверь:
-1) Если этот факт забыть через 30–50 сообщений, возникнет реальная проблема непрерывности? Если нет — НЕ сохраняй.
-2) Можно ли объединить его с другим фактом того же причинного эпизода в один более устойчивый итог? Если да — ОБЪЕДИНИ.
-3) Это новый результат сцены или просто подробность того, как сцена происходила? Подробность — НЕ сохраняй.
-4) Уже известный лорный факт стал знанием нового персонажа? Тогда сохраняй изменение знания, а не исходный факт.
+Память — не пересказ чата и не свалка «Событий». Сначала определи ТИП изменения, потом запиши один короткий атомарный факт в самую специфичную категорию.
 
-СЖИМАЙ ПРИЧИННО СВЯЗАННЫЕ СОБЫТИЯ.
-ПЛОХО: отдельные записи «Лесли сбежала», «береговая охрана нашла катер», «катер был пуст».
-ХОРОШО: одна запись «Лесли ушла с модулем; позже береговая охрана нашла её пустой катер, поэтому её местонахождение осталось неизвестным.»
+БАЗОВЫЙ ПРИНЦИП:
+— Лорбук, карточка персонажа и уже сохранённая память = baseline.
+— Не дублируй baseline.
+— Сохраняй только новую дельту сыгранной истории.
+— Одна запись = одно утверждение / одно изменение / одна единица знания.
+— Не склеивай несколько независимых нюансов в один абзац.
+— text должен быть тезисным: обычно 6–18 слов, максимум одна короткая фраза.
+— Если факт можно естественно разделить на два самостоятельных факта — раздели.
 
-НЕ СОХРАНЯЙ как отдельные факты:
-— заголовок статьи, реакцию публики, пресс-релиз, газетный выпуск, промежуточный осмотр или техническую деталь, ЕСЛИ они не создают новое устойчивое состояние/конфликт;
-— каждое звено одного расследования по отдельности;
-— событие, чьё единственное значение уже полностью выражено более поздним итогом;
-— временный фон сцены, даже если он драматичен.
+КАТЕГОРИИ И ИХ НАЗНАЧЕНИЕ:
 
-КАЛИБРОВКА ВАЖНОСТИ:
-HIGH — РЕДКО. Только: раскрытие личности/секрета; необратимое крупное последствие; существенная смена отношений/статуса; центральная незакрытая угроза/цель; решение, которое будет определять будущие сцены.
-MEDIUM — НОРМА для большинства полезных устойчивых фактов: важное знание, результат расследования, официальная реакция, новая улика, договорённость, заметное последствие, важная гипотеза, которая направляет следующий шаг.
-LOW — второстепенная, но потенциально полезная деталь. Если LOW почти наверняка не понадобится, лучше вообще не сохраняй.
-НЕ ставь HIGH просто потому, что событие было экшеновым, публичным, эмоциональным, попало на первую полосу или вызвало общественный резонанс.
-Заголовок, официальное опровержение, публикация, находка улики или версия расследования обычно MEDIUM, если сами по себе не создают необратимый новый статус мира/отношений.
-В обычном пакете стремись к НЕ БОЛЕЕ ОДНОГО нового HIGH. Два и более HIGH допустимы только если в пакете действительно произошло несколько независимых аркообразующих/необратимых изменений.
+characters — 👤 ПЕРСОНАЖИ
+Только НОВЫЕ устойчивые факты о самом персонаже, которых не было в baseline: новая работа, навык, привычка, собственность, травма, статус, объективно установленная черта.
+Не используй characters для уже известной биографии, которую персонаж просто рассказал другим.
+
+secrets — 🔒 СЕКРЕТЫ
+Объективная правда сюжета, которую знает сюжет/читатель, но не знают все персонажи. knownBy содержит только реально знающих.
+Пример: «Кларк — человек в капюшоне.» knownBy=["Кларк"].
+Если секрет раскрывается новому персонажу — UPDATE knownBy; при значимом самом раскрытии можно дополнительно создать knowledge.
+
+flashbacks — 🌀 ПРОШЛОЕ
+Факты о прошлом персонажей, которые стали известны в текущей истории. Здесь важно не только ЧТО было в прошлом, но и КТО теперь это знает.
+Если Несс рассказывает Кларку важный эпизод своего прошлого — это flashbacks, а не characters и не events.
+
+relationships — 🤝 ОТНОШЕНИЯ
+Только устойчивое изменение связи между конкретными персонажами в хронологии: сближение, охлаждение, новый уровень доверия, конфликт, примирение, переход статуса отношений.
+Не сохраняй мимолётное настроение как изменение отношений.
+
+promises — 📌 ОБЕЩАНИЯ
+Обещания, договорённости, границы, обязательства, условия и нарушенные обещания.
+Каждое самостоятельное обязательство — отдельная запись.
+
+knowledge — 🧠 ЛИЧНЫЕ ЗНАНИЯ
+Кто что впервые узнал, от кого или каким способом, если это не относится точнее к flashbacks/secrets/promises/relationships.
+Формулируй: «X узнал от Y, что...», «X увидел...», «X обнаружил...», «X услышал от Y...». 
+Не сохраняй заново сам базовый факт.
+
+threads — ⚠️ СЮЖЕТНЫЕ НИТИ
+Незавершённые угрозы, цели, задачи, загадки, важные версии расследования, гипотезы и направления поиска.
+Если гипотеза принадлежит конкретному персонажу — сохраняй автора точно.
+
+ events — 📅 СОБЫТИЯ
+Только значимое объективно произошедшее изменение мира, которое НЕ подходит ни в одну специализированную категорию выше.
+EVENTS — ПОСЛЕДНИЙ ВАРИАНТ, а не категория по умолчанию.
+Если запись подходит в relationships, promises, secrets, flashbacks, knowledge, threads или characters — запрещено класть её в events.
+
+ПРИОРИТЕТ КАТЕГОРИЗАЦИИ:
+1) promises
+2) relationships
+3) secrets
+4) flashbacks
+5) threads
+6) knowledge
+7) characters
+8) events — только остаток
 
 ПЕРЕДАЧА ЗНАНИЯ:
-Сохраняй её только если само знание важно для будущей динамики. Не создавай memory item на каждую бытовую биографическую реплику.
-Формулируй источник точно: «X узнал от Y...», «X увидел...», «X обнаружил...». Не пиши «узнал», если X услышал ложь/предположение; тогда пиши «Y сказал X, что...».
+— Уже существующий лорный факт, впервые сообщённый другому персонажу, сохраняй как изменение знания, а не как повтор факта.
+ПРАВИЛЬНО: «Несс узнала от Кларка, что он родом из Смолвилла.»
+НЕПРАВИЛЬНО: «Кларк родом из Смолвилла.»
+— Если речь о прошлом персонажа, предпочитай flashbacks.
+— Если речь о скрытой объективной правде, предпочитай secrets + UPDATE knownBy.
+— Не добавляй персонажа в knownBy просто потому, что он присутствовал в сцене.
 
-ГИПОТЕЗЫ, ВЫВОДЫ И ВЕРСИИ РАССЛЕДОВАНИЯ:
-— Набор улик НЕ превращает предполагаемую причину, виновника, намерение или будущий план в объективный факт.
-— Если персонаж ПРЯМО высказывает гипотезу, версию, подозрение или вывод в реплике/явной мысли, сохраняй её как позицию ИМЕННО ЭТОГО ПЕРСОНАЖА. Автор гипотезы определяется тем, кто фактически произнёс/подумал её в тексте. Никогда не приписывай версию другому участнику сцены только потому, что он показал улики, находился рядом, задал вопрос или затем согласился.
-— Формулируй точно: «Кларк предположил, что...», «Джимми связал X с Y и предположил, что...», «Несс подозревает, что...». Если источник версии важен, перечисли ключевые улики, на которые опирался именно автор версии.
-— Если один персонаж предъявил данные, а другой на их основе сделал вывод, разделяй роли: первый предоставил/обнаружил данные, второй выдвинул гипотезу. Не сливай их в одного автора.
-— Слушатели НЕ становятся авторами гипотезы. Их можно добавить в knownBy, если они действительно услышали эту версию, но text должен сохранять реального автора.
-— НЕ пиши «Лесли делает X», «организация скрывает Y», «это означает Z», если это только вывод из косвенных признаков и текст не подтвердил его напрямую.
-— НЕ превращай гипотетическую причинность в грамматически установленный факт. Если связь «X вызывает Y» только предполагается, запрещены формулировки вроде «X, вызывая Y», «X привёл к Y», «из-за X произошло Y», «X угрожает Y» без явной маркировки версии/условия.
-— Разделяй три уровня: НАБЛЮДАЕМЫЙ ФАКТ, ГИПОТЕЗА ПЕРСОНАЖА и ПРОГНОЗ ПОСЛЕДСТВИЙ. Пример: «Зафиксированы скачки напряжения» — факт; «Кларк связал их с модулем и предположил, что Лесли его заряжает» — гипотеза; «Кларк предупредил, что при перегрузке сеть может оставить районы без света» — прогноз. Не склеивай их так, чтобы гипотеза стала фактом.
-— Если прогноз зависит от гипотезы, сохраняй условность: «может», «если версия верна», «Кларк предупредил, что...». Не пиши последствия как уже происходящие.
-— Официальное заявление, слух, обвинение и ложь сохраняй с источником: «Министерство заявило, что...», а не как установленную истину.
-— Намерение персонажа является фактом только если оно прямо высказано самим персонажем, показано действием без двусмысленности или подтверждено повествованием. Чужая догадка о его намерении остаётся чужой догадкой.
-— Если гипотеза сама важна для будущего расследования, обычно используй category="threads" или category="knowledge". Сам факт «персонаж придерживается версии X» может иметь confidence=1, даже если содержание X ещё не доказано.
-— Если позднее версия подтверждается или опровергается, UPDATE существующую запись, а не оставляй рядом взаимоисключающие формулировки.
+ГИПОТЕЗЫ И АВТОРСТВО:
+— Набор улик не превращает версию в факт.
+— Если гипотезу прямо сформулировал Кларк, автором является Кларк, даже если данные принёс Джимми.
+— Слушатели идут в knownBy, но не становятся авторами.
+— Формулируй: «Кларк предположил...», «Джимми подозревает...», «Несс связала X с Y...». 
+— Важная незавершённая гипотеза обычно category=threads.
+— Если версия позже подтверждена/опровергнута — UPDATE существующую запись.
 
-ПРОВЕРКА АВТОРСТВА ПЕРЕД СОХРАНЕНИЕМ ГИПОТЕЗЫ:
-1) Найди точную реплику/мысль, где версия была сформулирована.
-2) Установи говорящего/мыслящего персонажа.
-3) Именно его имя должно стоять субъектом формулировки «X предположил/подозревает/связал...».
-4) Персонажи, которые только слушали, идут в knownBy, но НЕ заменяют автора в text.
-5) Если авторство нельзя определить надёжно — не приписывай гипотезу конкретному персонажу.
+ПРИЧИННОСТЬ:
+Не превращай последовательность событий в доказанную причинность.
+Не используй «вызвало», «привело к», «из-за этого», «вынудило», если связь прямо не установлена текстом.
+Разделяй наблюдаемый факт, гипотезу и прогноз на отдельные атомарные записи, если каждый из них стоит помнить.
+
+АТОМАРНОСТЬ:
+ПЛОХО: «Катер нашли пустым, Кларк связал это со скачками и предупредил о больницах.»
+ХОРОШО:
+— «Береговая охрана нашла катер Лесли пустым.» [events]
+— «Кларк связал скачки напряжения с украденным модулем.» [threads]
+— «Кларк предупредил о риске для больничной автоматики.» [threads]
+
+Не объединяй два независимых долгосрочных факта только потому, что они появились в одном пакете.
+
+ХРОНОЛОГИЯ:
+Для каждого факта укажи inGameDate, inGameTime и location, если они прямо установлены или однозначно следуют из сцены.
+Не выдумывай дату/время/место. Если неизвестно — пустая строка.
+Если в сцене указаны дата/время/локация, используй их для всех относящихся к этой сцене фактов.
+
+ЦЕННОСТЬ:
+Перед сохранением спроси: «Если этот атомарный факт забыть через 30–50 сообщений, сломается ли непрерывность, знание персонажей, отношения, обязательство или сюжетная нить?» Если нет — не сохраняй.
+
+ВАЖНОСТЬ:
+HIGH — редко: крупный секрет, необратимый сдвиг отношений/статуса, центральная угроза, решение с долгими последствиями.
+MEDIUM — нормальный уровень для большинства полезных фактов.
+LOW — второстепенная, но потенциально полезная деталь.
+Не ставь HIGH просто потому, что сцена драматичная или публичная.
+
+РАБОТА С ПАМЯТЬЮ:
+NEW — новое устойчивое атомарное знание/событие/состояние.
+UPDATE — существующий факт существенно изменился, подтвердился, опровергнут или расширился knownBy.
+DUPLICATE — смысл уже сохранён.
+CONTRADICTS — новое сыгранное утверждение прямо противоречит памяти, и нельзя понять, что заменить.
+Для UPDATE/DUPLICATE/CONTRADICTS укажи targetId.
+
+Если новых значимых фактов нет — верни {"items":[]}.
+Не заполняй лимит ради количества.
 
 ПОРЯДОК ВЫВОДА:
-Сначала самые долгосрочно важные items. Не заполняй лимит ради количества.`;
+Сначала специализированные категории и долгосрочно полезные атомарные факты. events используй только как fallback.`;
 
-    const DEFAULT_MAX_NEW_ITEMS_NORMAL = 4;
-    const DEFAULT_MAX_NEW_ITEMS_BACKFILL = 3;
+    const DEFAULT_MAX_NEW_ITEMS_NORMAL = 6;
+    const DEFAULT_MAX_NEW_ITEMS_BACKFILL = 5;
 
     const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
 
-    const DEFAULT_SCANNER_PROMPT = `Ты — куратор ДЕЛЬТЫ непрерывности ролевой истории. Твоя задача НЕ пересказывать сообщения и НЕ создавать вторую копию лорбука. Сохраняй только то, что стало НОВЫМ вследствие сыгранной сцены.
+    const DEFAULT_SCANNER_PROMPT = `Ты — сканер дельты ролевой истории. Следуй правилам курации выше и верни только структурированные атомарные изменения.
 
-У тебя есть три источника:
-1) АКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ — уже известный авторский канон. НЕ сохраняй его повторно.
-2) СУЩЕСТВУЮЩАЯ ПАМЯТЬ — уже сохранённые последствия сыгранных сцен. НЕ дублируй её.
-3) НОВЫЕ СООБЩЕНИЯ — только здесь ищи изменения и новые последствия.
-
-ГЛАВНЫЙ ПРИНЦИП:
-Память должна отвечать на вопрос «что НОВОГО установила эта сцена по сравнению с уже существующим лором и памятью?», а не «какие факты вообще встретились в тексте?».
-
-СОХРАНЯЙ:
-- новое событие, реально произошедшее в сцене, если оно может иметь последствия;
-- новое решение, обещание, договорённость, границу или конфликт;
-- новое изменение отношений или устойчивого состояния;
-- новый секрет/открытие, которого не было в базовом лоре или памяти;
-- незавершённую сюжетную нить, возникшую именно в этой сцене;
-- ПЕРЕДАЧУ ЗНАНИЯ: если персонаж впервые узнал уже существующий лорный факт от другого персонажа или наблюдением, сохраняй НЕ сам базовый факт, а событие знания.
-
-КАК ПИСАТЬ ПЕРЕДАЧУ ЗНАНИЯ:
-ПЛОХО: «Кларк родом из Смолвилля.»
-ХОРОШО: «Несс узнала от Кларка, что он родом из Смолвилля.»
-ПЛОХО: «Кларк и Джимми знакомы с колледжа.»
-ХОРОШО: «Несс узнала, что Кларк и Джимми знакомы со студенческих лет.»
-ПЛОХО: «У Несс три кота.»
-ХОРОШО: «Кларк и Джимми узнали от Несс, что у неё три кота.»
-Для таких записей используй category="knowledge" и knownBy только для персонажей, которые действительно получили/уже имели это знание в сцене.
-
-НЕ СОХРАНЯЙ:
-- любую биографию, внешность, происхождение, работу, привычки, отношения или прошлое, если это уже присутствует в АКТИВНОМ ЛОРБУКЕ;
-- простое повторение канона в диалоге;
-- экспозицию/саммари старой истории без нового изменения;
-- факт только потому, что персонаж его произнёс;
-- бытовые микродействия без долгосрочного значения;
-- предположения, намёки и вероятности как объективную истину;
-- красивую авторскую формулировку вместо реально установленного события;
-- повтор уже существующей памяти.
+ИСТОЧНИКИ:
+1) АКТИВНЫЙ ЛОРБУК — baseline, не дублировать.
+2) СУЩЕСТВУЮЩАЯ ПАМЯТЬ — не дублировать; использовать ID для UPDATE/DUPLICATE/CONTRADICTS.
+3) НОВЫЕ СООБЩЕНИЯ — единственный источник новых items.
 
 КРИТИЧНО:
-1. ЛОРБУК — это BASELINE. Его содержимое никогда не должно появляться как NEW само по себе.
-2. Если лорный факт впервые становится знанием другого персонажа, сохраняй именно «кто узнал что и от кого/как», а не исходный лорный факт.
-3. Если лорный факт просто упомянут тем, кто и так его знает, не сохраняй ничего.
-4. Если базовый факт приводит к НОВОМУ последствию/решению, сохраняй последствие/решение, а не базовый факт.
-5. Если повествование говорит «кажется», «возможно», персонаж предполагает или ошибается — не превращай это в объективный факт. Если персонаж прямо высказывает гипотезу, сохраняй её как гипотезу именно того персонажа, который её произнёс/подумал; слушателей не делай авторами.
-5a. Никогда не маскируй гипотезу под причинный факт грамматикой. Если причинная связь только предполагается, пиши «X связал A с B и предположил...», а не «A вызывает B», «A, вызывая B» или «из-за A произошло B».
-5b. Если в одной сцене есть наблюдаемые данные, гипотеза и прогноз, держи уровни раздельно: что реально обнаружено; кто и что предположил; что, по словам персонажа, МОЖЕТ произойти.
-6. Различай объективный факт мира и знание персонажей. knownBy содержит только тех, кто действительно знает информацию после этой сцены.
-7. Не исправляй историю знаниями из канона извне. Используй только присланный активный лорбук, сыгранный текст и существующую память.
-8. Если новый факт обновляет старый — UPDATE. Если повторяет — DUPLICATE. Если прямо противоречит старому и из текста нельзя определить, какая версия верна — CONTRADICTS.
-9. Для UPDATE/DUPLICATE/CONTRADICTS укажи targetId существующего факта.
-10. text — кратко, конкретно, от третьего лица, без анализа.
-10a. importance: MEDIUM — стандарт для большинства полезных фактов. HIGH используй только для действительно аркообразующего/необратимого изменения; публичность, экшен, заголовок или официальная реакция сами по себе не делают факт HIGH. Обычно не более одного нового HIGH на обычный пакет.
-11. За один скан возвращай не более 12 items. Если НОВЫХ фактов нет — верни {"items":[]}.
-12. Выводи компактный JSON. Никогда не вставляй буквальные переносы строк, табы или управляющие символы внутрь строковых значений.
+— Сначала выбери самую специфичную category, только потом формулируй text.
+— events — fallback, а не категория по умолчанию.
+— Одна запись = один семантический атом.
+— text короткий: обычно 6–18 слов; не пиши абзацы и длинные сводки.
+— Не склеивай несколько действий союзами «и / а затем / после чего», если их можно хранить отдельно.
+— Для knownBy указывай только тех, кто действительно знает содержание.
+— Для гипотез точно сохраняй автора.
+— Для inGameDate/inGameTime/location используй только явно установленный или однозначный контекст сцены; иначе "".
+— sourceIndexes должны указывать сообщения, где атомарный факт реально установлен.
+— Не выводи markdown и пояснения.
 
-Верни ТОЛЬКО валидный JSON без markdown и без пояснений в формате:
+Верни ТОЛЬКО валидный JSON:
 {
   "items": [
     {
@@ -162,6 +188,9 @@ LOW — второстепенная, но потенциально полезн
         "subjects": ["имя"],
         "knownBy": ["имя"],
         "confidence": 1,
+        "inGameDate": "23 сентября",
+        "inGameTime": "14:16",
+        "location": "Daily Planet",
         "sourceIndexes": [12, 13]
       }
     }
@@ -179,6 +208,7 @@ LOW — второстепенная, но потенциально полезн
         maxOutputTokens: 4096,
         maxNewItemsNormal: DEFAULT_MAX_NEW_ITEMS_NORMAL,
         maxNewItemsBackfill: DEFAULT_MAX_NEW_ITEMS_BACKFILL,
+        promptSchemaVersion: 2,
         curationPrompt: DEFAULT_CURATION_PROMPT,
         injectEnabled: true,
         minImportance: 'medium',
@@ -340,7 +370,15 @@ LOW — второстепенная, но потенциально полезн
     }
 
     function normalizeProfile(profile) {
+        const previousPromptSchemaVersion = Number(profile?.promptSchemaVersion || 0);
         const normalized = mergeDefaults(profile, DEFAULT_PROFILE());
+        if (previousPromptSchemaVersion < 2) {
+            normalized.curationPrompt = DEFAULT_CURATION_PROMPT;
+            normalized.scannerPrompt = DEFAULT_SCANNER_PROMPT;
+            normalized.maxNewItemsNormal = DEFAULT_MAX_NEW_ITEMS_NORMAL;
+            normalized.maxNewItemsBackfill = DEFAULT_MAX_NEW_ITEMS_BACKFILL;
+            normalized.promptSchemaVersion = 2;
+        }
         if (!Array.isArray(normalized.facts)) normalized.facts = [];
         return normalized;
     }
@@ -488,16 +526,28 @@ LOW — второстепенная, но потенциально полезн
         return [...new Set(value.map(x => String(x || '').trim()).filter(Boolean))].slice(0, 30);
     }
 
+    function normalizeShortText(value, max = 120) {
+        return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    }
+
+    function normalizeFactText(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+    }
+
     function normalizeFact(raw = {}, sourceFallback = []) {
         const now = Date.now();
         return {
             id: raw.id || cryptoRandomId('fact'),
-            text: String(raw.text || '').trim().slice(0, 600),
+            text: normalizeFactText(raw.text),
             category: normalizeCategory(raw.category),
             importance: normalizeImportance(raw.importance),
             subjects: normalizeStringArray(raw.subjects),
             knownBy: normalizeStringArray(raw.knownBy),
             confidence: Number.isFinite(Number(raw.confidence)) ? Math.max(0, Math.min(1, Number(raw.confidence))) : 1,
+            inGameDate: normalizeShortText(raw.inGameDate || raw.gameDate || '', 80),
+            inGameTime: normalizeShortText(raw.inGameTime || raw.gameTime || '', 40),
+            location: normalizeShortText(raw.location || '', 140),
+            sourceChatIds: normalizeStringArray(raw.sourceChatIds || (raw.sourceChatId ? [raw.sourceChatId] : [])),
             sourceMessageIndexes: Array.isArray(raw.sourceMessageIndexes)
                 ? raw.sourceMessageIndexes.map(Number).filter(Number.isInteger)
                 : Array.isArray(raw.sourceIndexes)
@@ -739,7 +789,7 @@ LOW — второстепенная, но потенциально полезн
         if (!facts.length) return '(память пока пуста)';
         return facts.map(f => {
             const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
-            return `${f.id} | ${f.category} | ${f.importance} | знают: ${known} | ${f.text}`;
+            const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' '); const where = f.location ? ` @ ${f.location}` : ''; return `${f.id} | ${f.category} | ${f.importance} | ${when}${where} | знают: ${known} | ${f.text}`;
         }).join('\n');
     }
 
@@ -810,8 +860,8 @@ LOW — второстепенная, но потенциально полезн
         const normalNewLimit = Math.max(0, Math.min(20, Number(profile.maxNewItemsNormal ?? DEFAULT_MAX_NEW_ITEMS_NORMAL)));
         const backfillNewLimit = Math.max(0, Math.min(20, Number(profile.maxNewItemsBackfill ?? DEFAULT_MAX_NEW_ITEMS_BACKFILL)));
         const modeNote = backfill
-            ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Сжимай особенно агрессивно: максимум ${backfillNewLimit} действительно долговечных NEW-факта на этот пакет; предпочитай итог эпизода деталям.`
-            : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${normalNewLimit} действительно долговечных NEW-факта на этот пакет; нормальный результат часто 0–2.`;
+            ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Максимум ${backfillNewLimit} действительно долговечных NEW-фактов на этот пакет. Не делай сводку: сохраняй отдельные атомарные изменения по правильным категориям.`
+            : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${normalNewLimit} действительно долговечных NEW-фактов на этот пакет. Сохраняй атомарно и по специализированным категориям; нормальный результат может быть 0–4.`;
         const userPrompt = `${modeNote}\n\nАКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ (REFERENCE ONLY; НЕ СОХРАНЯЙ ИХ ПОВТОРНО):\n${loreReference}\n\nСУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
         const scannerSystemPrompt = `${profile.curationPrompt || DEFAULT_CURATION_PROMPT}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}`;
         let raw;
@@ -884,6 +934,10 @@ LOW — второстепенная, но потенциально полезн
                     subjects: target.subjects,
                     knownBy: target.knownBy,
                     confidence: target.confidence,
+                    inGameDate: target.inGameDate,
+                    inGameTime: target.inGameTime,
+                    location: target.location,
+                    sourceChatIds: target.sourceChatIds,
                     sourceMessageIndexes: target.sourceMessageIndexes,
                     updatedAt: target.updatedAt,
                 });
@@ -896,6 +950,10 @@ LOW — второстепенная, но потенциально полезн
                 target.subjects = next.subjects;
                 target.knownBy = next.knownBy;
                 target.confidence = next.confidence;
+                target.inGameDate = next.inGameDate || target.inGameDate || '';
+                target.inGameTime = next.inGameTime || target.inGameTime || '';
+                target.location = next.location || target.location || '';
+                target.sourceChatIds = [...new Set([...(target.sourceChatIds || []), ...normalizeStringArray(next.sourceChatIds || []), currentChatIdentity()])];
                 target.sourceMessageIndexes = [...new Set([...(target.sourceMessageIndexes || []), ...(next.sourceMessageIndexes || [])])];
                 target.status = 'active';
                 target.enabled = true;
@@ -906,6 +964,7 @@ LOW — второстепенная, но потенциально полезн
 
             if (action === 'CONTRADICTS') {
                 const f = normalizeFact(rawFact, sourceFallback);
+                f.sourceChatIds = [...new Set([...(f.sourceChatIds || []), currentChatIdentity()])];
                 f.status = 'conflict';
                 f.enabled = false;
                 f.contradicts = targetId;
@@ -916,6 +975,7 @@ LOW — второстепенная, но потенциально полезн
             }
 
             const candidate = normalizeFact(rawFact, sourceFallback);
+            candidate.sourceChatIds = [...new Set([...(candidate.sourceChatIds || []), currentChatIdentity()])];
             const exact = facts.find(f => factTextKey(f.text) === factTextKey(candidate.text) && f.status === 'active');
             if (exact) continue;
             if (acceptedNew >= Math.max(0, Number(newLimit) || 0)) continue;
@@ -1033,7 +1093,7 @@ LOW — второстепенная, но потенциально полезн
         const factLines = selected.length
             ? selected.map(f => {
                 const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
-                return `- [${String(f.importance).toUpperCase()}][${CATEGORIES[f.category]?.short || f.category}][знают: ${known}] ${f.text}`;
+                const when = [f.inGameDate, f.inGameTime].filter(Boolean).join(' '); const where = f.location ? ` @ ${f.location}` : ''; const stamp = when || where ? `[${when}${where}]` : ''; return `- [${String(f.importance).toUpperCase()}][${CATEGORIES[f.category]?.short || f.category}]${stamp}[знают: ${known}] ${f.text}`;
             }).join('\n')
             : '- (нет активных фактов выше выбранного порога)';
 
@@ -1077,6 +1137,7 @@ LOW — второстепенная, но потенциально полезн
                 importance: 'medium',
                 confidence: 1,
                 sourceIndexes: [(ctx()?.chat || []).length - 1],
+                sourceChatIds: [currentChatIdentity()],
             }));
             added++;
         }
@@ -1346,6 +1407,8 @@ LOW — второстепенная, но потенциально полезн
             <div class="fmt3-panel-tools">
               <input id="fmt3_fact_search" type="search" placeholder="Поиск по фактам…">
               <select id="fmt3_fact_status"><option value="active">Активные</option><option value="conflict">Конфликты</option><option value="all">Все</option></select>
+              <select id="fmt3_fact_scope" title="Какие записи показывать"><option value="chat">Этот чат</option><option value="profile">Весь профиль</option></select>
+              <select id="fmt3_view_mode" title="Вид памяти"><option value="categories">По разделам</option><option value="chronology">Хронология</option></select>
             </div>
 
             <select id="fmt3_fact_category" class="fmt3-hidden" aria-hidden="true">
@@ -1396,6 +1459,8 @@ LOW — второстепенная, но потенциально полезн
         panel.querySelector('#fmt3_panel_close_bottom').addEventListener('click', () => panel.classList.add('fmt3-hidden'));
         panel.querySelector('#fmt3_fact_search').addEventListener('input', renderFactsGrid);
         panel.querySelector('#fmt3_fact_status').addEventListener('change', renderFactsGrid);
+        panel.querySelector('#fmt3_fact_scope').addEventListener('change', renderFactsGrid);
+        panel.querySelector('#fmt3_view_mode').addEventListener('change', renderFactsGrid);
         panel.querySelector('#fmt3_fact_category').addEventListener('change', renderFactsGrid);
         panel.querySelector('#fmt3_category_strip').addEventListener('click', event => {
             const button = event.target.closest('button[data-category]');
@@ -1612,6 +1677,54 @@ LOW — второстепенная, но потенциально полезн
         renderAll();
     }
 
+    function factChronologyKey(f) {
+        const date = String(f.inGameDate || '').toLowerCase();
+        const time = String(f.inGameTime || '99:99');
+        const idx = Math.min(...((f.sourceMessageIndexes || []).length ? f.sourceMessageIndexes : [999999]));
+        return `${date}|${time}|${String(idx).padStart(8, '0')}`;
+    }
+
+    function renderFactCard(f, { showCategory = true, showDate = true } = {}) {
+        const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
+        const subjects = f.subjects?.length ? f.subjects.join(', ') : '—';
+        const stampBits = [];
+        if (showDate && f.inGameDate) stampBits.push(f.inGameDate);
+        if (f.inGameTime) stampBits.push(f.inGameTime);
+        if (f.location) stampBits.push(f.location);
+        const stamp = stampBits.join(' · ');
+        return `<article class="fmt3-fact-card fmt3-fact-compact" data-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}" data-selected="${selectedFactIds.has(f.id)}">
+            <div class="fmt3-fact-compact-main">
+              <label class="fmt3-fact-select-wrap" title="Выбрать"><input class="fmt3-fact-select" type="checkbox" data-id="${escapeHtml(f.id)}" ${selectedFactIds.has(f.id) ? 'checked' : ''}></label>
+              ${showCategory ? `<span class="fmt3-cat fmt3-cat-icon" title="${escapeHtml(CATEGORIES[f.category]?.short || f.category)}">${escapeHtml((CATEGORIES[f.category]?.label || '•').split(' ')[0])}</span>` : ''}
+              <div class="fmt3-fact-compact-copy">
+                ${stamp ? `<div class="fmt3-fact-stamp">${escapeHtml(stamp)}</div>` : ''}
+                <div class="fmt3-fact-text">${escapeHtml(f.text)}</div>
+              </div>
+              <select class="fmt3-fact-importance" data-action="importance" title="Важность">
+                <option value="high" ${f.importance === 'high' ? 'selected' : ''}>High</option>
+                <option value="medium" ${f.importance === 'medium' ? 'selected' : ''}>Medium</option>
+                <option value="low" ${f.importance === 'low' ? 'selected' : ''}>Low</option>
+              </select>
+            </div>
+            <details class="fmt3-fact-details">
+              <summary>детали</summary>
+              <div class="fmt3-fact-detail-body">
+                <div class="fmt3-fact-meta">Раздел: ${escapeHtml(CATEGORIES[f.category]?.label || f.category)}</div>
+                <div class="fmt3-fact-meta">Знают: ${escapeHtml(known)}</div>
+                <div class="fmt3-fact-meta">Участники: ${escapeHtml(subjects)}</div>
+                ${f.status === 'conflict' ? `<div class="fmt3-conflict">⚠ Конфликтует с ${escapeHtml(f.contradicts || 'неизвестным фактом')}</div>` : ''}
+                <div class="fmt3-fact-actions">
+                  <button data-action="flashback" title="Флешбек">🌀</button>
+                  <button data-action="edit" title="Редактировать">✏️</button>
+                  <button data-action="knowledge" title="Кто знает">🧠</button>
+                  <button data-action="toggle" title="Вкл/выкл">${f.enabled === false ? '○' : '●'}</button>
+                  <button data-action="delete" title="Удалить">🗑</button>
+                </div>
+              </div>
+            </details>
+          </article>`;
+    }
+
     function renderFactsGrid() {
         const grid = document.getElementById('fmt3_fact_grid');
         if (!grid) return;
@@ -1623,10 +1736,13 @@ LOW — второстепенная, но потенциально полезн
         const search = String(document.getElementById('fmt3_fact_search')?.value || '').toLowerCase().trim();
         const category = document.getElementById('fmt3_fact_category')?.value || 'all';
         const status = document.getElementById('fmt3_fact_status')?.value || 'active';
+        const scope = document.getElementById('fmt3_fact_scope')?.value || 'chat';
+        const viewMode = document.getElementById('fmt3_view_mode')?.value || 'categories';
+        const currentChat = currentChatIdentity();
         let facts = [...profileAllFacts];
+        if (scope === 'chat') facts = facts.filter(f => (f.sourceChatIds || []).includes(currentChat));
         facts = facts.filter(f => (category === 'all' || f.category === category) && (status === 'all' || f.status === status));
-        if (search) facts = facts.filter(f => `${f.text} ${(f.subjects || []).join(' ')} ${(f.knownBy || []).join(' ')}`.toLowerCase().includes(search));
-        facts.sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.updatedAt - a.updatedAt);
+        if (search) facts = facts.filter(f => `${f.text} ${(f.subjects || []).join(' ')} ${(f.knownBy || []).join(' ')} ${f.location || ''} ${f.inGameDate || ''}`.toLowerCase().includes(search));
 
         const subtitle = document.getElementById('fmt3_panel_subtitle');
         const activeCount = profileAllFacts.filter(f => f.status === 'active' && f.enabled !== false).length;
@@ -1644,38 +1760,35 @@ LOW — второстепенная, но потенциально полезн
         }
 
         if (!facts.length) {
-            grid.innerHTML = '<div class="fmt3-empty">Нажмите 🔍 Скан — AI извлечёт важное из истории чата.</div>';
+            grid.innerHTML = '<div class="fmt3-empty">В этом представлении фактов пока нет.</div>';
             updateBulkToolbar();
             return;
         }
-        grid.innerHTML = facts.map(f => {
-            const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
-            const subjects = f.subjects?.length ? f.subjects.join(', ') : '—';
-            return `<article class="fmt3-fact-card" data-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}" data-selected="${selectedFactIds.has(f.id)}">
-                <div class="fmt3-fact-top">
-                  <div class="fmt3-fact-top-left">
-                    <label class="fmt3-fact-select-wrap" title="Выбрать для массового редактирования"><input class="fmt3-fact-select" type="checkbox" data-id="${escapeHtml(f.id)}" ${selectedFactIds.has(f.id) ? 'checked' : ''}></label>
-                    <span class="fmt3-cat">${escapeHtml(CATEGORIES[f.category]?.label || f.category)}</span>
-                  </div>
-                  <select class="fmt3-fact-importance" data-action="importance">
-                    <option value="high" ${f.importance === 'high' ? 'selected' : ''}>High</option>
-                    <option value="medium" ${f.importance === 'medium' ? 'selected' : ''}>Medium</option>
-                    <option value="low" ${f.importance === 'low' ? 'selected' : ''}>Low</option>
-                  </select>
-                </div>
-                <div class="fmt3-fact-text">${escapeHtml(f.text)}</div>
-                <div class="fmt3-fact-meta">Знают: ${escapeHtml(known)}</div>
-                <div class="fmt3-fact-meta">Участники: ${escapeHtml(subjects)}</div>
-                ${f.status === 'conflict' ? `<div class="fmt3-conflict">⚠ Конфликтует с ${escapeHtml(f.contradicts || 'неизвестным фактом')}</div>` : ''}
-                <div class="fmt3-fact-actions">
-                  <button data-action="flashback" title="Флешбек">🌀</button>
-                  <button data-action="edit" title="Редактировать">✏️</button>
-                  <button data-action="knowledge" title="Кто знает">🧠</button>
-                  <button data-action="toggle" title="Вкл/выкл">${f.enabled === false ? '○' : '●'}</button>
-                  <button data-action="delete" title="Удалить">🗑</button>
-                </div>
-              </article>`;
-        }).join('');
+
+        if (viewMode === 'chronology') {
+            const groups = new Map();
+            for (const f of facts) {
+                const key = f.inGameDate || 'Без даты';
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(f);
+            }
+            const ordered = [...groups.entries()].sort((a, b) => {
+                const ai = Math.min(...a[1].flatMap(f => f.sourceMessageIndexes || [999999]));
+                const bi = Math.min(...b[1].flatMap(f => f.sourceMessageIndexes || [999999]));
+                return ai - bi;
+            });
+            grid.innerHTML = ordered.map(([date, list]) => {
+                list.sort((a, b) => factChronologyKey(a).localeCompare(factChronologyKey(b), 'ru'));
+                return `<section class="fmt3-memory-group"><div class="fmt3-memory-group-title">${escapeHtml(date)} <span>${list.length}</span></div><div class="fmt3-memory-list">${list.map(f => renderFactCard(f, { showCategory: true, showDate: false })).join('')}</div></section>`;
+            }).join('');
+        } else {
+            const keys = category === 'all' ? Object.keys(CATEGORIES) : [category];
+            grid.innerHTML = keys.map(key => {
+                const list = facts.filter(f => f.category === key).sort((a,b) => factChronologyKey(a).localeCompare(factChronologyKey(b), 'ru'));
+                if (!list.length) return '';
+                return `<section class="fmt3-memory-group" data-category="${escapeHtml(key)}"><div class="fmt3-memory-group-title">${escapeHtml(CATEGORIES[key]?.label || key)} <span>${list.length}</span></div><div class="fmt3-memory-list">${list.map(f => renderFactCard(f, { showCategory: false, showDate: true })).join('')}</div></section>`;
+            }).join('');
+        }
         updateBulkToolbar();
     }
 
