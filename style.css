@@ -592,3 +592,97 @@ details.fmt3-section + .fmt3-section {
 .fmt3-section > summary { list-style: none; cursor: pointer; }
 .fmt3-section[open] > summary.fmt3-section-title::before { content: "▾"; }
 .fmt3-section:not([open]) > summary.fmt3-section-title::before { content: "▸"; }
+
+
+/* ---------- 3.0.4 spacing polish ---------- */
+.fmt3-settings .inline-drawer-content {
+    padding: 8px 12px 14px;
+}
+
+.fmt3-section {
+    padding: 2px 0 8px;
+}
+
+.fmt3-section + .fmt3-section,
+.fmt3-section + details.fmt3-section,
+details.fmt3-section + .fmt3-section {
+    margin-top: 4px;
+    padding-top: 6px;
+}
+
+.fmt3-section-title,
+.fmt3-section > summary.fmt3-section-title {
+    min-height: 38px;
+    padding: 2px 8px;
+}
+
+.fmt3-section-body {
+    padding: 4px 8px 12px;
+}
+
+.fmt3-grid2,
+.fmt3-grid4 {
+    gap: 10px;
+    margin: 10px 0 8px;
+}
+
+.fmt3-row {
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.fmt3-check {
+    margin: 8px 0;
+    line-height: 1.35;
+}
+
+.fmt3-main-actions {
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+.fmt3-main-actions .menu_button,
+.fmt3-row .menu_button {
+    min-height: 34px;
+    padding-inline: 12px;
+}
+
+.fmt3-hint {
+    margin-top: 8px;
+    padding-left: 2px;
+    line-height: 1.5;
+}
+
+#fmt3_chat_binding,
+#fmt3_scan_state {
+    margin-top: 10px;
+    padding-top: 2px;
+}
+
+.fmt3-status {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 10px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.fmt3-settings input[type="number"],
+.fmt3-settings input[type="text"],
+.fmt3-settings select {
+    min-height: 34px;
+    padding: 6px 10px;
+}
+
+.fmt3-settings textarea,
+.fmt3-panel textarea {
+    line-height: 1.45;
+}
+
+.fmt3-panel-head {
+    padding: 16px 18px 12px;
+}
+
+.fmt3-panel-body {
+    padding: 12px 18px 82px;
+}

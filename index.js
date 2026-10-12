@@ -34,7 +34,7 @@
 
     const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
 
-    const DEFAULT_SCANNER_PROMPT = `Ты — куратор непрерывности ролевой истории. Извлекай только важные, устойчивые факты из ПРИСЛАННЫХ сообщений и сопоставляй их с уже сохранённой памятью.\n\nЧТО СОХРАНЯТЬ:\n- новые персонажи, роли, устойчивые черты и установленные отношения;\n- ключевые события, решения и последствия;\n- секреты и скрытые факты, но отдельно отмечай, кто реально их знает;\n- важные сведения из прошлого;\n- изменение отношений;\n- обещания, договорённости и границы;\n- личные знания конкретных персонажей;\n- незавершённые сюжетные нити, которые могут иметь последствия.\n\nЧТО НЕ СОХРАНЯТЬ:\n- бытовые микродействия без долгосрочного значения;\n- повтор уже сохранённого факта;\n- предположения, намёки и вероятности как объективную истину;\n- красивую авторскую формулировку вместо реально установленного события;\n- факты, которых нет в присланных сообщениях.\n\nКРИТИЧНО:\n1. Если повествование говорит «кажется», «возможно», персонаж предполагает или ошибается — не превращай это в объективный факт.\n2. Различай объективный факт мира и знание персонажей. knownBy содержит только тех, кто действительно узнал/увидел факт в сцене. Если это не установлено, оставь knownBy пустым.\n3. Не исправляй историю знаниями из канона или общими знаниями. Только сыгранный текст и список существующей памяти.\n4. Если новый факт обновляет старый — UPDATE. Если повторяет — DUPLICATE. Если прямо противоречит старому и из текста нельзя определить, какая версия верна — CONTRADICTS.\n5. Для UPDATE/DUPLICATE/CONTRADICTS укажи targetId существующего факта.\n6. text — кратко, конкретно, от третьего лица, без анализа.\n\nВерни ТОЛЬКО валидный JSON без markdown и без пояснений в формате:\n{\n  "items": [\n    {\n      "action": "NEW|UPDATE|DUPLICATE|CONTRADICTS",\n      "targetId": null,\n      "fact": {\n        "text": "...",\n        "category": "characters|events|secrets|flashbacks|relationships|promises|knowledge|threads",\n        "importance": "high|medium|low",\n        "subjects": ["имя"],\n        "knownBy": ["имя"],\n        "confidence": 1,\n        "sourceIndexes": [12, 13]\n      }\n    }\n  ]\n}`;
+    const DEFAULT_SCANNER_PROMPT = `Ты — куратор непрерывности ролевой истории. Извлекай только важные, устойчивые факты из ПРИСЛАННЫХ сообщений и сопоставляй их с уже сохранённой памятью.\n\nЧТО СОХРАНЯТЬ:\n- новые персонажи, роли, устойчивые черты и установленные отношения;\n- ключевые события, решения и последствия;\n- секреты и скрытые факты, но отдельно отмечай, кто реально их знает;\n- важные сведения из прошлого;\n- изменение отношений;\n- обещания, договорённости и границы;\n- личные знания конкретных персонажей;\n- незавершённые сюжетные нити, которые могут иметь последствия.\n\nЧТО НЕ СОХРАНЯТЬ:\n- бытовые микродействия без долгосрочного значения;\n- повтор уже сохранённого факта;\n- предположения, намёки и вероятности как объективную истину;\n- красивую авторскую формулировку вместо реально установленного события;\n- факты, которых нет в присланных сообщениях.\n\nКРИТИЧНО:\n1. Если повествование говорит «кажется», «возможно», персонаж предполагает или ошибается — не превращай это в объективный факт.\n2. Различай объективный факт мира и знание персонажей. knownBy содержит только тех, кто действительно узнал/увидел факт в сцене. Если это не установлено, оставь knownBy пустым.\n3. Не исправляй историю знаниями из канона или общими знаниями. Только сыгранный текст и список существующей памяти.\n4. Если новый факт обновляет старый — UPDATE. Если повторяет — DUPLICATE. Если прямо противоречит старому и из текста нельзя определить, какая версия верна — CONTRADICTS.\n5. Для UPDATE/DUPLICATE/CONTRADICTS укажи targetId существующего факта.\n6. text — кратко, конкретно, от третьего лица, без анализа.\n7. За один скан возвращай не более 12 items. Если важных фактов меньше — не добивай количество.\n8. Выводи компактный JSON. Никогда не вставляй буквальные переносы строк, табы или управляющие символы внутрь строковых значений.\n\nВерни ТОЛЬКО валидный JSON без markdown и без пояснений в формате:\n{\n  "items": [\n    {\n      "action": "NEW|UPDATE|DUPLICATE|CONTRADICTS",\n      "targetId": null,\n      "fact": {\n        "text": "...",\n        "category": "characters|events|secrets|flashbacks|relationships|promises|knowledge|threads",\n        "importance": "high|medium|low",\n        "subjects": ["имя"],\n        "knownBy": ["имя"],\n        "confidence": 1,\n        "sourceIndexes": [12, 13]\n      }\n    }\n  ]\n}`;
 
     const DEFAULT_PROFILE = () => ({
         id: cryptoRandomId('profile'),
@@ -287,7 +287,7 @@
         return `${name}${model}`;
     }
 
-    async function callProfile(messages, maxTokens) {
+    async function callProfile(messages, maxTokens, overridePayload = {}) {
         const profile = memoryProfile();
         if (!profile?.connectionProfileId) throw new Error('Не выбран профиль подключения SillyTavern');
         const service = ctx()?.ConnectionManagerRequestService;
@@ -309,6 +309,7 @@
                 includePreset: false,
                 includeInstruct: true,
             },
+            overridePayload || {},
         );
 
         const text = extractResponseText(result);
@@ -341,7 +342,7 @@
             const text = await callProfile([
                 { role: 'system', content: 'Верни только JSON. Никакого markdown.' },
                 { role: 'user', content: 'Ответь строго так: {"ok":true}' },
-            ], 1024);
+            ], 1024, { response_format: { type: 'json_object' } });
             const parsed = parseJsonLoose(text);
             if (parsed?.ok === true) {
                 setStatus('✓ Профиль отвечает и возвращает JSON', 'ok');
@@ -367,22 +368,114 @@
         return last || String(error || 'Неизвестная ошибка');
     }
 
+    function escapeRawControlsInsideJsonStrings(input) {
+        let out = '';
+        let inString = false;
+        let escaped = false;
+        for (let i = 0; i < input.length; i++) {
+            const ch = input[i];
+            if (!inString) {
+                out += ch;
+                if (ch === '"') inString = true;
+                continue;
+            }
+            if (escaped) {
+                out += ch;
+                escaped = false;
+                continue;
+            }
+            if (ch === '\\') {
+                out += ch;
+                escaped = true;
+                continue;
+            }
+            if (ch === '"') {
+                out += ch;
+                inString = false;
+                continue;
+            }
+            if (ch === '\n') { out += '\\n'; continue; }
+            if (ch === '\r') { out += '\\r'; continue; }
+            if (ch === '\t') { out += '\\t'; continue; }
+            const code = ch.charCodeAt(0);
+            if (code >= 0 && code < 0x20) {
+                out += `\\u${code.toString(16).padStart(4, '0')}`;
+                continue;
+            }
+            out += ch;
+        }
+        return out;
+    }
+
+    function repairJsonCandidate(input) {
+        let s = String(input || '')
+            .replace(/^\uFEFF/, '')
+            .replace(/\u00A0/g, ' ')
+            .trim();
+
+        s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        s = s.replace(/^json\s*/i, '').trim();
+        s = escapeRawControlsInsideJsonStrings(s);
+        // Common model slip: trailing commas before closing braces/brackets.
+        s = s.replace(/,\s*([}\]])/g, '$1');
+        return s;
+    }
+
+    function tryParseJsonCandidate(candidate) {
+        const repaired = repairJsonCandidate(candidate);
+        try { return JSON.parse(repaired); } catch (_) { return null; }
+    }
+
+    function extractBalancedJsonCandidate(input, openChar, closeChar) {
+        const s = String(input || '');
+        const start = s.indexOf(openChar);
+        if (start < 0) return '';
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let i = start; i < s.length; i++) {
+            const ch = s[i];
+            if (inString) {
+                if (escaped) { escaped = false; continue; }
+                if (ch === '\\') { escaped = true; continue; }
+                if (ch === '"') inString = false;
+                continue;
+            }
+            if (ch === '"') { inString = true; continue; }
+            if (ch === openChar) depth++;
+            if (ch === closeChar) {
+                depth--;
+                if (depth === 0) return s.slice(start, i + 1);
+            }
+        }
+        return '';
+    }
+
     function parseJsonLoose(text) {
         if (typeof text !== 'string' || !text.trim()) throw new Error('Модель вернула пустой ответ');
-        let s = text.trim();
-        s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-        try { return JSON.parse(s); } catch (_) { /* continue */ }
-        const firstObj = s.indexOf('{');
-        const lastObj = s.lastIndexOf('}');
-        if (firstObj >= 0 && lastObj > firstObj) {
-            try { return JSON.parse(s.slice(firstObj, lastObj + 1)); } catch (_) { /* continue */ }
+        const raw = text.trim();
+
+        const direct = tryParseJsonCandidate(raw);
+        if (direct !== null) return direct;
+
+        const objectCandidate = extractBalancedJsonCandidate(raw, '{', '}');
+        if (objectCandidate) {
+            const parsed = tryParseJsonCandidate(objectCandidate);
+            if (parsed !== null) return parsed;
         }
-        const firstArr = s.indexOf('[');
-        const lastArr = s.lastIndexOf(']');
-        if (firstArr >= 0 && lastArr > firstArr) {
-            try { return JSON.parse(s.slice(firstArr, lastArr + 1)); } catch (_) { /* continue */ }
+
+        const arrayCandidate = extractBalancedJsonCandidate(raw, '[', ']');
+        if (arrayCandidate) {
+            const parsed = tryParseJsonCandidate(arrayCandidate);
+            if (parsed !== null) return parsed;
         }
-        throw new Error(`Модель вернула невалидный JSON: ${s.slice(0, 180)}`);
+
+        const opens = (raw.match(/[\[{]/g) || []).length;
+        const closes = (raw.match(/[\]}]/g) || []).length;
+        if (opens > closes) {
+            throw new Error(`JSON-ответ модели, похоже, оборван до закрывающих скобок. Увеличь «Max tokens» или уменьши размер пакета. Начало ответа: ${raw.slice(0, 150)}`);
+        }
+        throw new Error(`Модель вернула невалидный JSON даже после безопасного ремонта: ${raw.slice(0, 180)}`);
     }
 
     function formatExistingFactsForScanner(limit = 70) {
@@ -428,12 +521,38 @@
         }
 
         const userPrompt = `СУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
-        const raw = await callProfile([
-            { role: 'system', content: profile.scannerPrompt || DEFAULT_SCANNER_PROMPT },
-            { role: 'user', content: userPrompt },
-        ], profile.maxOutputTokens || 4096);
+        let raw;
+        try {
+            raw = await callProfile([
+                { role: 'system', content: profile.scannerPrompt || DEFAULT_SCANNER_PROMPT },
+                { role: 'user', content: userPrompt },
+            ], profile.maxOutputTokens || 4096, { response_format: { type: 'json_object' } });
+        } catch (error) {
+            // Some providers/models do not support response_format. Retry once without it.
+            const msg = deepestErrorMessage(error).toLowerCase();
+            const looksLikeFormatSupport = msg.includes('response_format') || msg.includes('structured') || msg.includes('json_object') || msg.includes('unsupported');
+            if (!looksLikeFormatSupport) throw error;
+            raw = await callProfile([
+                { role: 'system', content: profile.scannerPrompt || DEFAULT_SCANNER_PROMPT },
+                { role: 'user', content: userPrompt },
+            ], profile.maxOutputTokens || 4096);
+        }
 
-        const parsed = parseJsonLoose(raw);
+        let parsed;
+        try {
+            parsed = parseJsonLoose(raw);
+        } catch (firstParseError) {
+            // One cheap syntax-only repair pass. It is instructed not to change facts.
+            const repairedRaw = await callProfile([
+                { role: 'system', content: 'Ты форматтер JSON. Исправь только синтаксис переданного JSON. Не добавляй, не удаляй и не меняй смысл фактов. Верни только валидный JSON без markdown.' },
+                { role: 'user', content: String(raw || '').slice(0, 24000) },
+            ], Math.min(Number(profile.maxOutputTokens || 4096), 4096), { response_format: { type: 'json_object' } });
+            try {
+                parsed = parseJsonLoose(repairedRaw);
+            } catch (_) {
+                throw firstParseError;
+            }
+        }
         const items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
         const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n));
 
