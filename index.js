@@ -63,6 +63,25 @@ LOW — второстепенная, но потенциально полезн
 Сохраняй её только если само знание важно для будущей динамики. Не создавай memory item на каждую бытовую биографическую реплику.
 Формулируй источник точно: «X узнал от Y...», «X увидел...», «X обнаружил...». Не пиши «узнал», если X услышал ложь/предположение; тогда пиши «Y сказал X, что...».
 
+ГИПОТЕЗЫ, ВЫВОДЫ И ВЕРСИИ РАССЛЕДОВАНИЯ:
+— Набор улик НЕ превращает предполагаемую причину, виновника, намерение или будущий план в объективный факт.
+— Если персонаж ПРЯМО высказывает гипотезу, версию, подозрение или вывод в реплике/явной мысли, сохраняй её как позицию ИМЕННО ЭТОГО ПЕРСОНАЖА. Автор гипотезы определяется тем, кто фактически произнёс/подумал её в тексте. Никогда не приписывай версию другому участнику сцены только потому, что он показал улики, находился рядом, задал вопрос или затем согласился.
+— Формулируй точно: «Кларк предположил, что...», «Джимми связал X с Y и предположил, что...», «Несс подозревает, что...». Если источник версии важен, перечисли ключевые улики, на которые опирался именно автор версии.
+— Если один персонаж предъявил данные, а другой на их основе сделал вывод, разделяй роли: первый предоставил/обнаружил данные, второй выдвинул гипотезу. Не сливай их в одного автора.
+— Слушатели НЕ становятся авторами гипотезы. Их можно добавить в knownBy, если они действительно услышали эту версию, но text должен сохранять реального автора.
+— НЕ пиши «Лесли делает X», «организация скрывает Y», «это означает Z», если это только вывод из косвенных признаков и текст не подтвердил его напрямую.
+— Официальное заявление, слух, обвинение и ложь сохраняй с источником: «Министерство заявило, что...», а не как установленную истину.
+— Намерение персонажа является фактом только если оно прямо высказано самим персонажем, показано действием без двусмысленности или подтверждено повествованием. Чужая догадка о его намерении остаётся чужой догадкой.
+— Если гипотеза сама важна для будущего расследования, обычно используй category="threads" или category="knowledge". Сам факт «персонаж придерживается версии X» может иметь confidence=1, даже если содержание X ещё не доказано.
+— Если позднее версия подтверждается или опровергается, UPDATE существующую запись, а не оставляй рядом взаимоисключающие формулировки.
+
+ПРОВЕРКА АВТОРСТВА ПЕРЕД СОХРАНЕНИЕМ ГИПОТЕЗЫ:
+1) Найди точную реплику/мысль, где версия была сформулирована.
+2) Установи говорящего/мыслящего персонажа.
+3) Именно его имя должно стоять субъектом формулировки «X предположил/подозревает/связал...».
+4) Персонажи, которые только слушали, идут в knownBy, но НЕ заменяют автора в text.
+5) Если авторство нельзя определить надёжно — не приписывай гипотезу конкретному персонажу.
+
 ПОРЯДОК ВЫВОДА:
 Сначала самые долгосрочно важные items. Не заполняй лимит ради количества.`;
 
@@ -113,7 +132,7 @@ LOW — второстепенная, но потенциально полезн
 2. Если лорный факт впервые становится знанием другого персонажа, сохраняй именно «кто узнал что и от кого/как», а не исходный лорный факт.
 3. Если лорный факт просто упомянут тем, кто и так его знает, не сохраняй ничего.
 4. Если базовый факт приводит к НОВОМУ последствию/решению, сохраняй последствие/решение, а не базовый факт.
-5. Если повествование говорит «кажется», «возможно», персонаж предполагает или ошибается — не превращай это в объективный факт.
+5. Если повествование говорит «кажется», «возможно», персонаж предполагает или ошибается — не превращай это в объективный факт. Если персонаж прямо высказывает гипотезу, сохраняй её как гипотезу именно того персонажа, который её произнёс/подумал; слушателей не делай авторами.
 6. Различай объективный факт мира и знание персонажей. knownBy содержит только тех, кто действительно знает информацию после этой сцены.
 7. Не исправляй историю знаниями из канона извне. Используй только присланный активный лорбук, сыгранный текст и существующую память.
 8. Если новый факт обновляет старый — UPDATE. Если повторяет — DUPLICATE. Если прямо противоречит старому и из текста нельзя определить, какая версия верна — CONTRADICTS.
@@ -177,6 +196,7 @@ LOW — второстепенная, но потенциально полезн
     let scanLock = false;
     let initialized = false;
     let lastKnownChatIdentity = '';
+    let selectedFactIds = new Set();
 
     function ctx() {
         return window.SillyTavern?.getContext?.();
@@ -1128,6 +1148,7 @@ LOW — второстепенная, но потенциально полезн
 
     async function onChatChanged() {
         lastKnownChatIdentity = currentChatIdentity();
+        selectedFactIds.clear();
         chatState();
         await loadProfileMemory(memoryProfile());
         await migrateLegacyChatFactsToProfileIfSafe();
@@ -1306,6 +1327,26 @@ LOW — второстепенная, но потенциально полезн
               ${Object.entries(CATEGORIES).map(([k,v]) => `<button class="fmt3-category-pill" data-category="${k}" title="${escapeHtml(v.short)}">${escapeHtml(v.label.split(' ')[0])}</button>`).join('')}
             </div>
 
+            <div id="fmt3_bulk_bar" class="fmt3-bulk-bar">
+              <div class="fmt3-bulk-select">
+                <button id="fmt3_bulk_select_all" type="button">☑ Всё профиля</button>
+                <button id="fmt3_bulk_clear" type="button">Снять</button>
+                <span id="fmt3_bulk_count">0 выбрано</span>
+              </div>
+              <div id="fmt3_bulk_actions" class="fmt3-bulk-actions">
+                <select id="fmt3_bulk_importance" title="Изменить важность выбранных">
+                  <option value="">Важность…</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+                </select>
+                <select id="fmt3_bulk_category" title="Изменить категорию выбранных">
+                  <option value="">Категория…</option>
+                  ${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}">${escapeHtml(v.label)}</option>`).join('')}
+                </select>
+                <button id="fmt3_bulk_enable" type="button" title="Включить выбранные">● Вкл</button>
+                <button id="fmt3_bulk_disable" type="button" title="Выключить выбранные">○ Выкл</button>
+                <button id="fmt3_bulk_delete" type="button" class="fmt3-bulk-danger" title="Удалить выбранные">🗑 Удалить</button>
+              </div>
+            </div>
+
             <div class="fmt3-panel-divider"></div>
             <div id="fmt3_fact_grid" class="fmt3-fact-grid"></div>
           </div>
@@ -1336,6 +1377,13 @@ LOW — второстепенная, но потенциально полезн
         });
         panel.querySelector('#fmt3_fact_grid').addEventListener('click', handleFactGridClick);
         panel.querySelector('#fmt3_fact_grid').addEventListener('change', handleFactGridChange);
+        panel.querySelector('#fmt3_bulk_select_all').addEventListener('click', bulkSelectAllProfile);
+        panel.querySelector('#fmt3_bulk_clear').addEventListener('click', bulkClearSelection);
+        panel.querySelector('#fmt3_bulk_enable').addEventListener('click', () => bulkSetEnabled(true));
+        panel.querySelector('#fmt3_bulk_disable').addEventListener('click', () => bulkSetEnabled(false));
+        panel.querySelector('#fmt3_bulk_delete').addEventListener('click', bulkDeleteSelected);
+        panel.querySelector('#fmt3_bulk_importance').addEventListener('change', event => bulkSetImportance(event.target.value));
+        panel.querySelector('#fmt3_bulk_category').addEventListener('change', event => bulkSetCategory(event.target.value));
         panel.querySelector('#fmt3_panel_scan').addEventListener('click', () => scanPending({ manual: true }));
         panel.querySelector('#fmt3_panel_rescan').addEventListener('click', rescanRecent);
         panel.querySelector('#fmt3_panel_scanall').addEventListener('click', scanWholeChat);
@@ -1433,6 +1481,103 @@ LOW — второстепенная, но потенциально полезн
         if (n) n.textContent = String(count);
     }
 
+    function pruneSelectedFactsToCurrentProfile() {
+        const valid = new Set(profileFacts().map(f => f.id));
+        selectedFactIds = new Set([...selectedFactIds].filter(id => valid.has(id)));
+    }
+
+    function selectedProfileFacts() {
+        pruneSelectedFactsToCurrentProfile();
+        return profileFacts().filter(f => selectedFactIds.has(f.id));
+    }
+
+    function updateBulkToolbar() {
+        pruneSelectedFactsToCurrentProfile();
+        const count = selectedFactIds.size;
+        const profileCount = profileFacts().length;
+        const counter = document.getElementById('fmt3_bulk_count');
+        if (counter) counter.textContent = `${count} выбрано`;
+        const selectAll = document.getElementById('fmt3_bulk_select_all');
+        if (selectAll) {
+            selectAll.textContent = `☑ Всё профиля (${profileCount})`;
+            selectAll.disabled = profileCount === 0;
+        }
+        const actions = document.getElementById('fmt3_bulk_actions');
+        if (actions) actions.dataset.active = String(count > 0);
+        for (const id of ['fmt3_bulk_clear','fmt3_bulk_enable','fmt3_bulk_disable','fmt3_bulk_delete','fmt3_bulk_importance','fmt3_bulk_category']) {
+            const el = document.getElementById(id);
+            if (el) el.disabled = count === 0;
+        }
+    }
+
+    function bulkSelectAllProfile() {
+        selectedFactIds = new Set(profileFacts().map(f => f.id));
+        renderFactsGrid();
+    }
+
+    function bulkClearSelection() {
+        selectedFactIds.clear();
+        renderFactsGrid();
+    }
+
+    async function bulkSetEnabled(enabled) {
+        const selected = selectedProfileFacts();
+        if (!selected.length) return;
+        const now = Date.now();
+        for (const fact of selected) {
+            fact.enabled = !!enabled;
+            fact.updatedAt = now;
+        }
+        await saveProfileMemory();
+        renderAll();
+    }
+
+    async function bulkSetImportance(value) {
+        const select = document.getElementById('fmt3_bulk_importance');
+        if (!value) return;
+        const selected = selectedProfileFacts();
+        if (!selected.length) { if (select) select.value = ''; return; }
+        const normalized = normalizeImportance(value);
+        const now = Date.now();
+        for (const fact of selected) {
+            fact.importance = normalized;
+            fact.updatedAt = now;
+        }
+        await saveProfileMemory();
+        if (select) select.value = '';
+        renderAll();
+    }
+
+    async function bulkSetCategory(value) {
+        const select = document.getElementById('fmt3_bulk_category');
+        if (!value) return;
+        const selected = selectedProfileFacts();
+        if (!selected.length) { if (select) select.value = ''; return; }
+        const normalized = normalizeCategory(value);
+        const now = Date.now();
+        for (const fact of selected) {
+            fact.category = normalized;
+            fact.updatedAt = now;
+        }
+        await saveProfileMemory();
+        if (select) select.value = '';
+        renderAll();
+    }
+
+    async function bulkDeleteSelected() {
+        const selected = selectedProfileFacts();
+        if (!selected.length) return;
+        if (!window.confirm(`Удалить выбранные факты (${selected.length}) только из профиля «${memoryProfile()?.name || ''}»?`)) return;
+        const ids = new Set(selected.map(f => f.id));
+        const facts = profileFacts();
+        for (let i = facts.length - 1; i >= 0; i--) {
+            if (ids.has(facts[i].id)) facts.splice(i, 1);
+        }
+        selectedFactIds.clear();
+        await saveProfileMemory();
+        renderAll();
+    }
+
     function renderFactsGrid() {
         const grid = document.getElementById('fmt3_fact_grid');
         if (!grid) return;
@@ -1440,6 +1585,7 @@ LOW — второстепенная, но потенциально полезн
         if (!st) return;
         const profile = memoryProfile();
         const profileAllFacts = profileFacts();
+        pruneSelectedFactsToCurrentProfile();
         const search = String(document.getElementById('fmt3_fact_search')?.value || '').toLowerCase().trim();
         const category = document.getElementById('fmt3_fact_category')?.value || 'all';
         const status = document.getElementById('fmt3_fact_status')?.value || 'active';
@@ -1465,14 +1611,18 @@ LOW — второстепенная, но потенциально полезн
 
         if (!facts.length) {
             grid.innerHTML = '<div class="fmt3-empty">Нажмите 🔍 Скан — AI извлечёт важное из истории чата.</div>';
+            updateBulkToolbar();
             return;
         }
         grid.innerHTML = facts.map(f => {
             const known = f.knownBy?.length ? f.knownBy.join(', ') : 'не установлено';
             const subjects = f.subjects?.length ? f.subjects.join(', ') : '—';
-            return `<article class="fmt3-fact-card" data-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}">
+            return `<article class="fmt3-fact-card" data-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}" data-selected="${selectedFactIds.has(f.id)}">
                 <div class="fmt3-fact-top">
-                  <span class="fmt3-cat">${escapeHtml(CATEGORIES[f.category]?.label || f.category)}</span>
+                  <div class="fmt3-fact-top-left">
+                    <label class="fmt3-fact-select-wrap" title="Выбрать для массового редактирования"><input class="fmt3-fact-select" type="checkbox" data-id="${escapeHtml(f.id)}" ${selectedFactIds.has(f.id) ? 'checked' : ''}></label>
+                    <span class="fmt3-cat">${escapeHtml(CATEGORIES[f.category]?.label || f.category)}</span>
+                  </div>
                   <select class="fmt3-fact-importance" data-action="importance">
                     <option value="high" ${f.importance === 'high' ? 'selected' : ''}>High</option>
                     <option value="medium" ${f.importance === 'medium' ? 'selected' : ''}>Medium</option>
@@ -1492,6 +1642,7 @@ LOW — второстепенная, но потенциально полезн
                 </div>
               </article>`;
         }).join('');
+        updateBulkToolbar();
     }
 
     async function handleFactGridClick(event) {
@@ -1535,6 +1686,16 @@ LOW — второстепенная, но потенциально полезн
 
     async function handleFactGridChange(event) {
         const el = event.target;
+        if (el.matches('input.fmt3-fact-select')) {
+            const id = String(el.dataset.id || '');
+            if (id) {
+                if (el.checked) selectedFactIds.add(id);
+                else selectedFactIds.delete(id);
+                el.closest('.fmt3-fact-card')?.setAttribute('data-selected', String(el.checked));
+                updateBulkToolbar();
+            }
+            return;
+        }
         if (!el.matches('select[data-action="importance"]')) return;
         const id = el.closest('.fmt3-fact-card')?.dataset.id;
         const fact = profileFacts().find(f => f.id === id);
@@ -1566,6 +1727,7 @@ LOW — второстепенная, но потенциально полезн
         byId('fmt3_memory_profile').addEventListener('change', async e => {
             const st = chatState();
             if (!st) return;
+            selectedFactIds.clear();
             st.memoryProfileId = e.target.value;
             const g = globalSettings();
             if (byId('fmt3_bind_scope').checked) g.scopeBindings[currentScopeKey()] = e.target.value;
@@ -1592,6 +1754,7 @@ LOW — второстепенная, но потенциально полезн
             const p = DEFAULT_PROFILE();
             p.name = name.trim();
             g.profiles.push(p);
+            selectedFactIds.clear();
             chatState().memoryProfileId = p.id;
             saveGlobal(); await saveChatState(); await persistProfileMemory(p); renderAll();
         });
@@ -1616,6 +1779,7 @@ LOW — второстепенная, но потенциально полезн
             await removePersistedProfileMemory(p.id);
             if (g.defaultProfileId === p.id) g.defaultProfileId = g.profiles[0].id;
             for (const [k, v] of Object.entries(g.scopeBindings)) if (v === p.id) delete g.scopeBindings[k];
+            selectedFactIds.clear();
             chatState().memoryProfileId = g.defaultProfileId;
             saveGlobal(); await saveChatState(); renderAll();
         });
@@ -1728,7 +1892,7 @@ LOW — второстепенная, но потенциально полезн
         installEvents();
         await initialRender();
         refreshInjection();
-        console.log('[FMT3] Facts Memory Tracker RP v3.0.8 initialized');
+        console.log('[FMT3] Facts Memory Tracker RP v3.0.9 initialized');
     }
 
     // SillyTavern loads third-party scripts after the page exists, but APP_READY is safer.
