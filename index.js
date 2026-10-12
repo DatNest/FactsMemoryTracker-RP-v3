@@ -14,6 +14,7 @@
     const PANEL_ID = 'fmt3_memory_panel';
     const SETTINGS_ID = 'fmt3_settings_root';
     const BUBBLE_ID = 'fmt3_bubble';
+    const PROFILE_MEMORY_PREFIX = `${MODULE}:profile-memory:`;
 
     const CATEGORIES = {
         characters: { label: '👤 Персонажи', short: 'Персонажи' },
@@ -284,10 +285,93 @@
         return profile.facts;
     }
 
+    function profileMemoryKey(profileId) {
+        return `${PROFILE_MEMORY_PREFIX}${profileId}`;
+    }
+
+    function localForageStore() {
+        return window.SillyTavern?.libs?.localforage || null;
+    }
+
+    function localStorageBackupKey(profileId) {
+        return `${profileMemoryKey(profileId)}:backup`;
+    }
+
+    async function loadProfileMemory(profile) {
+        if (!profile?.id) return [];
+        normalizeProfile(profile);
+        let stored = null;
+
+        const store = localForageStore();
+        if (store?.getItem) {
+            try {
+                stored = await store.getItem(profileMemoryKey(profile.id));
+            } catch (error) {
+                console.warn('[FMT3] Could not read profile memory from localforage', error);
+            }
+        }
+
+        if (!Array.isArray(stored)) {
+            try {
+                const backup = window.localStorage?.getItem(localStorageBackupKey(profile.id));
+                if (backup) {
+                    const parsed = JSON.parse(backup);
+                    if (Array.isArray(parsed)) stored = parsed;
+                }
+            } catch (error) {
+                console.warn('[FMT3] Could not read profile memory backup', error);
+            }
+        }
+
+        if (Array.isArray(stored)) {
+            profile.facts = stored.map(f => normalizeFact(f));
+            return profile.facts;
+        }
+
+        // First run after migration: seed durable storage from legacy settings data.
+        profile.facts = Array.isArray(profile.facts) ? profile.facts.map(f => normalizeFact(f)) : [];
+        if (profile.facts.length) await persistProfileMemory(profile);
+        return profile.facts;
+    }
+
+    async function persistProfileMemory(profile) {
+        if (!profile?.id) return;
+        normalizeProfile(profile);
+        profile.updatedAt = Date.now();
+        const snapshot = deepClone(profile.facts || []);
+
+        // Keep a mirror in extension settings for backwards compatibility/export.
+        profile.facts = snapshot;
+        saveGlobal();
+
+        const store = localForageStore();
+        if (store?.setItem) {
+            try {
+                await store.setItem(profileMemoryKey(profile.id), snapshot);
+            } catch (error) {
+                console.error('[FMT3] Could not persist profile memory to localforage', error);
+            }
+        }
+
+        // Small emergency backup. Ignore quota failures; IndexedDB/localforage remains primary.
+        try {
+            window.localStorage?.setItem(localStorageBackupKey(profile.id), JSON.stringify(snapshot));
+        } catch (_) { /* quota or privacy mode */ }
+    }
+
+    async function removePersistedProfileMemory(profileId) {
+        if (!profileId) return;
+        const store = localForageStore();
+        if (store?.removeItem) {
+            try { await store.removeItem(profileMemoryKey(profileId)); } catch (_) { /* noop */ }
+        }
+        try { window.localStorage?.removeItem(localStorageBackupKey(profileId)); } catch (_) { /* noop */ }
+    }
+
     function saveProfileMemory() {
         const profile = memoryProfile();
-        if (profile) profile.updatedAt = Date.now();
-        saveGlobal();
+        if (!profile) return Promise.resolve();
+        return persistProfileMemory(profile);
     }
 
     async function migrateLegacyChatFactsToProfileIfSafe() {
@@ -299,7 +383,7 @@
         // Never merge a legacy chat into an already populated profile.
         if (legacy.length && profile.facts.length === 0) {
             profile.facts = legacy.map(f => normalizeFact(f));
-            saveProfileMemory();
+            await saveProfileMemory();
         }
         st.legacyFactsMigratedToProfile = true;
         await saveChatState();
@@ -691,7 +775,7 @@
         }
         const items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
         const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n));
-        if (result.added || result.updated || result.conflicts) saveProfileMemory();
+        if (result.added || result.updated || result.conflicts) await saveProfileMemory();
 
         if (updateCursor) {
             st.lastScannedMessageIndex = Math.max(st.lastScannedMessageIndex, end);
@@ -921,7 +1005,7 @@
             added++;
         }
         if (added) {
-            saveProfileMemory();
+            saveProfileMemory().catch(error => console.error('[FMT3] Failed to persist marker facts', error));
             refreshInjection();
             renderAll();
         }
@@ -1002,6 +1086,7 @@
     async function onChatChanged() {
         lastKnownChatIdentity = currentChatIdentity();
         chatState();
+        await loadProfileMemory(memoryProfile());
         await migrateLegacyChatFactsToProfileIfSafe();
         refreshInjection();
         refreshConnectionProfilesUI();
@@ -1400,7 +1485,7 @@
             st.pendingFlashbackFactId = fact.id;
             toast('success', 'Факт будет предложен как мягкий флешбек в следующем ответе.');
         }
-        saveProfileMemory();
+        await saveProfileMemory();
         await saveChatState();
         renderAll();
     }
@@ -1413,7 +1498,7 @@
         if (!fact) return;
         fact.importance = normalizeImportance(el.value);
         fact.updatedAt = Date.now();
-        saveProfileMemory();
+        await saveProfileMemory();
         renderAll();
     }
 
@@ -1443,6 +1528,7 @@
             if (byId('fmt3_bind_scope').checked) g.scopeBindings[currentScopeKey()] = e.target.value;
             saveGlobal();
             await saveChatState();
+            await loadProfileMemory(memoryProfile());
             setStatus('', '');
             renderAll();
         });
@@ -1464,7 +1550,7 @@
             p.name = name.trim();
             g.profiles.push(p);
             chatState().memoryProfileId = p.id;
-            saveGlobal(); await saveChatState(); renderAll();
+            saveGlobal(); await saveChatState(); await persistProfileMemory(p); renderAll();
         });
 
         byId('fmt3_profile_clone').addEventListener('click', async () => {
@@ -1475,7 +1561,7 @@
             p.name = `${src.name} — копия`;
             g.profiles.push(p);
             chatState().memoryProfileId = p.id;
-            saveGlobal(); await saveChatState(); renderAll();
+            saveGlobal(); await saveChatState(); await persistProfileMemory(p); renderAll();
         });
 
         byId('fmt3_profile_delete').addEventListener('click', async () => {
@@ -1484,6 +1570,7 @@
             if (g.profiles.length <= 1) return toast('warning', 'Нельзя удалить единственный профиль.');
             if (!window.confirm(`Удалить профиль «${p.name}» вместе с его памятью (${profileFacts().length} фактов)?`)) return;
             g.profiles = g.profiles.filter(x => x.id !== p.id);
+            await removePersistedProfileMemory(p.id);
             if (g.defaultProfileId === p.id) g.defaultProfileId = g.profiles[0].id;
             for (const [k, v] of Object.entries(g.scopeBindings)) if (v === p.id) delete g.scopeBindings[k];
             chatState().memoryProfileId = g.defaultProfileId;
@@ -1565,7 +1652,7 @@
                 existing.add(factTextKey(fact.text));
                 added++;
             }
-            saveProfileMemory();
+            await saveProfileMemory();
             renderAll();
             toast('success', `Импортировано ${added} новых фактов.`);
         } catch (error) {
@@ -1573,12 +1660,14 @@
         }
     }
 
-    function initialRender() {
+    async function initialRender() {
         renderSettingsHtml();
         renderBubble();
         renderMemoryPanelShell();
         chatState();
-        migrateLegacyChatFactsToProfileIfSafe();
+        const g = globalSettings();
+        for (const profile of (g?.profiles || [])) await loadProfileMemory(profile);
+        await migrateLegacyChatFactsToProfileIfSafe();
         refreshConnectionProfilesUI();
         renderAll();
     }
@@ -1594,9 +1683,9 @@
         globalSettings();
         lastKnownChatIdentity = currentChatIdentity();
         installEvents();
-        initialRender();
+        await initialRender();
         refreshInjection();
-        console.log('[FMT3] Facts Memory Tracker RP v3 initialized');
+        console.log('[FMT3] Facts Memory Tracker RP v3.0.7 initialized');
     }
 
     // SillyTavern loads third-party scripts after the page exists, but APP_READY is safer.
