@@ -33,6 +33,42 @@
         low: { label: 'Low', rank: 1 },
     };
 
+
+    const STRICT_MEMORY_POLICY = `ЖЁСТКИЙ РЕЖИМ КУРАЦИИ ПАМЯТИ.
+Память — НЕ конспект сюжета и НЕ хроника каждого события. Она должна хранить минимальный набор устойчивых фактов, без которых будущая сцена может стать противоречивой, забыть важное знание, обещание, последствие или незакрытую линию.
+
+ПЕРЕД ДОБАВЛЕНИЕМ КАЖДОГО ITEM мысленно проверь:
+1) Если этот факт забыть через 30–50 сообщений, возникнет реальная проблема непрерывности? Если нет — НЕ сохраняй.
+2) Можно ли объединить его с другим фактом того же причинного эпизода в один более устойчивый итог? Если да — ОБЪЕДИНИ.
+3) Это новый результат сцены или просто подробность того, как сцена происходила? Подробность — НЕ сохраняй.
+4) Уже известный лорный факт стал знанием нового персонажа? Тогда сохраняй изменение знания, а не исходный факт.
+
+СЖИМАЙ ПРИЧИННО СВЯЗАННЫЕ СОБЫТИЯ.
+ПЛОХО: отдельные записи «Лесли сбежала», «береговая охрана нашла катер», «катер был пуст».
+ХОРОШО: одна запись «Лесли ушла с модулем; позже береговая охрана нашла её пустой катер, поэтому её местонахождение осталось неизвестным.»
+
+НЕ СОХРАНЯЙ как отдельные факты:
+— заголовок статьи, реакцию публики, пресс-релиз, газетный выпуск, промежуточный осмотр или техническую деталь, ЕСЛИ они не создают новое устойчивое состояние/конфликт;
+— каждое звено одного расследования по отдельности;
+— событие, чьё единственное значение уже полностью выражено более поздним итогом;
+— временный фон сцены, даже если он драматичен.
+
+КАЛИБРОВКА ВАЖНОСТИ:
+HIGH — РЕДКО. Только: раскрытие личности/секрета; необратимое крупное последствие; существенная смена отношений/статуса; центральная незакрытая угроза/цель; решение, которое будет определять будущие сцены.
+MEDIUM — нормальный уровень для полезной устойчивой памяти: важное знание, результат расследования, договорённость, заметное последствие.
+LOW — второстепенная, но потенциально полезная деталь. Если LOW почти наверняка не понадобится, лучше вообще не сохраняй.
+НЕ ставь HIGH просто потому, что событие было экшеновым, публичным или эмоциональным.
+
+ПЕРЕДАЧА ЗНАНИЯ:
+Сохраняй её только если само знание важно для будущей динамики. Не создавай memory item на каждую бытовую биографическую реплику.
+Формулируй источник точно: «X узнал от Y...», «X увидел...», «X обнаружил...». Не пиши «узнал», если X услышал ложь/предположение; тогда пиши «Y сказал X, что...».
+
+ПОРЯДОК ВЫВОДА:
+Сначала самые долгосрочно важные items. Не заполняй лимит ради количества.`;
+
+    const MAX_NEW_ITEMS_NORMAL = 4;
+    const MAX_NEW_ITEMS_BACKFILL = 3;
+
     const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
 
     const DEFAULT_SCANNER_PROMPT = `Ты — куратор ДЕЛЬТЫ непрерывности ролевой истории. Твоя задача НЕ пересказывать сообщения и НЕ создавать вторую копию лорбука. Сохраняй только то, что стало НОВЫМ вследствие сыгранной сцены.
@@ -726,7 +762,7 @@
         }
     }
 
-    async function scanChunk(start, end, { updateCursor = true, quiet = false } = {}) {
+    async function scanChunk(start, end, { updateCursor = true, quiet = false, backfill = false } = {}) {
         const profile = memoryProfile();
         const st = chatState();
         if (!profile || !st) return { added: 0, updated: 0, conflicts: 0 };
@@ -740,11 +776,15 @@
         }
 
         const loreReference = await getActiveLoreReference(start, end);
-        const userPrompt = `АКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ (REFERENCE ONLY; НЕ СОХРАНЯЙ ИХ ПОВТОРНО):\n${loreReference}\n\nСУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
+        const modeNote = backfill
+            ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Сжимай особенно агрессивно: максимум ${MAX_NEW_ITEMS_BACKFILL} действительно долговечных NEW-факта на этот пакет; предпочитай итог эпизода деталям.`
+            : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${MAX_NEW_ITEMS_NORMAL} действительно долговечных NEW-факта на этот пакет; нормальный результат часто 0–2.`;
+        const userPrompt = `${modeNote}\n\nАКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ (REFERENCE ONLY; НЕ СОХРАНЯЙ ИХ ПОВТОРНО):\n${loreReference}\n\nСУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
+        const scannerSystemPrompt = `${STRICT_MEMORY_POLICY}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}`;
         let raw;
         try {
             raw = await callProfile([
-                { role: 'system', content: profile.scannerPrompt || DEFAULT_SCANNER_PROMPT },
+                { role: 'system', content: scannerSystemPrompt },
                 { role: 'user', content: userPrompt },
             ], profile.maxOutputTokens || 4096, { response_format: { type: 'json_object' } });
         } catch (error) {
@@ -753,7 +793,7 @@
             const looksLikeFormatSupport = msg.includes('response_format') || msg.includes('structured') || msg.includes('json_object') || msg.includes('unsupported');
             if (!looksLikeFormatSupport) throw error;
             raw = await callProfile([
-                { role: 'system', content: profile.scannerPrompt || DEFAULT_SCANNER_PROMPT },
+                { role: 'system', content: scannerSystemPrompt },
                 { role: 'user', content: userPrompt },
             ], profile.maxOutputTokens || 4096);
         }
@@ -774,7 +814,7 @@
             }
         }
         const items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
-        const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n));
+        const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n), { newLimit: backfill ? MAX_NEW_ITEMS_BACKFILL : MAX_NEW_ITEMS_NORMAL });
         if (result.added || result.updated || result.conflicts) await saveProfileMemory();
 
         if (updateCursor) {
@@ -788,10 +828,11 @@
         return result;
     }
 
-    function applyScannerItems(items, sourceFallback) {
+    function applyScannerItems(items, sourceFallback, { newLimit = MAX_NEW_ITEMS_NORMAL } = {}) {
         const facts = profileFacts();
         const byId = new Map(facts.map(f => [f.id, f]));
         let added = 0, updated = 0, conflicts = 0;
+        let acceptedNew = 0;
 
         for (const item of items || []) {
             const action = String(item?.action || 'NEW').toUpperCase();
@@ -844,14 +885,16 @@
             const candidate = normalizeFact(rawFact, sourceFallback);
             const exact = facts.find(f => factTextKey(f.text) === factTextKey(candidate.text) && f.status === 'active');
             if (exact) continue;
+            if (acceptedNew >= Math.max(0, Number(newLimit) || 0)) continue;
             facts.push(candidate);
             byId.set(candidate.id, candidate);
             added++;
+            acceptedNew++;
         }
         return { added, updated, conflicts };
     }
 
-    async function scanPending({ manual = true } = {}) {
+    async function scanPending({ manual = true, backfill = false } = {}) {
         if (scanLock) {
             if (manual) toast('info', 'Скан уже идёт.');
             return;
@@ -883,7 +926,7 @@
             while (cursor <= finalIndex) {
                 const end = Math.min(finalIndex, cursor + batch - 1);
                 setStatus(`Скан ${cursor}–${end} из ${finalIndex}`, 'busy');
-                const r = await scanChunk(cursor, end, { updateCursor: true, quiet: true });
+                const r = await scanChunk(cursor, end, { updateCursor: true, quiet: true, backfill });
                 totals.added += r.added;
                 totals.updated += r.updated;
                 totals.conflicts += r.conflicts;
@@ -930,7 +973,7 @@
         if (!st) return;
         st.lastScannedMessageIndex = -1;
         await saveChatState();
-        await scanPending({ manual: true });
+        await scanPending({ manual: true, backfill: true });
     }
 
     async function resetScanCursor() {
@@ -1685,7 +1728,7 @@
         installEvents();
         await initialRender();
         refreshInjection();
-        console.log('[FMT3] Facts Memory Tracker RP v3.0.7 initialized');
+        console.log('[FMT3] Facts Memory Tracker RP v3.0.8 initialized');
     }
 
     // SillyTavern loads third-party scripts after the page exists, but APP_READY is safer.
