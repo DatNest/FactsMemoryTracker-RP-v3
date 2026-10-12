@@ -755,83 +755,117 @@
         root.innerHTML = `
         <div class="inline-drawer">
           <div class="inline-drawer-toggle inline-drawer-header">
-            <b>🧠 Память фактов RP v3</b>
+            <b>🧠 Память фактов</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
           </div>
           <div class="inline-drawer-content">
-            <div class="fmt3-section">
-              <div class="fmt3-section-title">Профиль памяти</div>
-              <div class="fmt3-row">
-                <select id="fmt3_memory_profile"></select>
-                <button id="fmt3_profile_new" class="menu_button">＋</button>
-                <button id="fmt3_profile_clone" class="menu_button">⧉</button>
-                <button id="fmt3_profile_delete" class="menu_button">🗑</button>
-              </div>
-              <label class="fmt3-check"><input id="fmt3_bind_scope" type="checkbox"> Использовать этот профиль по умолчанию во всех новых чатах этого персонажа/группы</label>
-              <div class="fmt3-hint" id="fmt3_chat_binding"></div>
-            </div>
 
-            <div class="fmt3-section">
-              <div class="fmt3-section-title">Подключение сканера</div>
-              <div class="fmt3-row">
-                <select id="fmt3_connection_profile"></select>
-                <button id="fmt3_connections_refresh" class="menu_button">↻</button>
+            <section class="fmt3-section">
+              <div class="fmt3-section-title">⚙ ОСНОВНОЕ</div>
+              <div class="fmt3-section-body">
+                <div class="fmt3-grid2">
+                  <label class="fmt3-check"><input id="fmt3_inject_enabled" type="checkbox"> Инъекция в промпт</label>
+                  <label class="fmt3-check"><input id="fmt3_widget_enabled" type="checkbox"> Виджет 🧠</label>
+                </div>
+                <div class="fmt3-slider-row">
+                  <span>Размер виджета:</span>
+                  <input id="fmt3_widget_scale" type="range" min="60" max="160" step="5">
+                  <b id="fmt3_widget_scale_value">100%</b>
+                </div>
+                <div class="fmt3-main-actions">
+                  <button id="fmt3_open_memory" class="menu_button">📂 Трекер</button>
+                  <button id="fmt3_scan_pending" class="menu_button">🔍 Скан</button>
+                  <button id="fmt3_scan_all" class="menu_button">📚 Весь чат</button>
+                </div>
               </div>
-              <div class="fmt3-row">
-                <button id="fmt3_test_connection" class="menu_button">Проверить профиль</button>
-                <span id="fmt3_connection_status" class="fmt3-status"></span>
-              </div>
-              <div class="fmt3-hint">Используется существующий Connection Profile SillyTavern. Текущий профиль основного RP не переключается.</div>
-            </div>
+            </section>
 
-            <div class="fmt3-section">
-              <div class="fmt3-section-title">Сканирование</div>
-              <label class="fmt3-check"><input id="fmt3_auto_scan" type="checkbox"> Авто-скан</label>
-              <div class="fmt3-grid4">
-                <label>Каждые<input id="fmt3_auto_every" type="number" min="1" max="100"></label>
-                <label>Пакет<input id="fmt3_batch_size" type="number" min="4" max="50"></label>
-                <label>Перекрытие<input id="fmt3_overlap" type="number" min="0" max="10"></label>
-                <label>Max tokens<input id="fmt3_max_tokens" type="number" min="256" max="16384" step="256"></label>
+            <details class="fmt3-section" open>
+              <summary class="fmt3-section-title">🗂 ПРОФИЛЬ ПАМЯТИ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-row">
+                  <select id="fmt3_memory_profile"></select>
+                  <button id="fmt3_profile_new" class="menu_button" title="Новый профиль">＋</button>
+                  <button id="fmt3_profile_clone" class="menu_button" title="Клонировать">⧉</button>
+                  <button id="fmt3_profile_delete" class="menu_button" title="Удалить">🗑</button>
+                </div>
+                <label class="fmt3-check"><input id="fmt3_bind_scope" type="checkbox"> Автоматически использовать этот профиль в новых чатах персонажа / группы</label>
+                <div class="fmt3-hint" id="fmt3_chat_binding"></div>
               </div>
-              <label class="fmt3-check"><input id="fmt3_auto_marker" type="checkbox"> Авто-маркер [FACT:]</label>
-              <div class="fmt3-row fmt3-wrap">
-                <button id="fmt3_scan_pending" class="menu_button">🔎 Скан новых</button>
-                <button id="fmt3_rescan_recent" class="menu_button">↻ Последний пакет</button>
-                <button id="fmt3_scan_all" class="menu_button">📚 Весь чат</button>
-                <button id="fmt3_reset_cursor" class="menu_button">Сброс курсора</button>
+            </details>
+
+            <details class="fmt3-section" open>
+              <summary class="fmt3-section-title">🔍 СКАНИРОВАНИЕ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-grid2">
+                  <label class="fmt3-check"><input id="fmt3_auto_scan" type="checkbox"> Авто-скан</label>
+                  <label class="fmt3-check"><input id="fmt3_auto_marker" type="checkbox"> Авто-маркер [FACT:]</label>
+                </div>
+                <div class="fmt3-grid4">
+                  <label>Каждые<input id="fmt3_auto_every" type="number" min="1" max="100"></label>
+                  <label>Пакет<input id="fmt3_batch_size" type="number" min="4" max="50"></label>
+                  <label>Перекрытие<input id="fmt3_overlap" type="number" min="0" max="10"></label>
+                  <label>Max tokens<input id="fmt3_max_tokens" type="number" min="256" max="16384" step="256"></label>
+                </div>
+                <div class="fmt3-row fmt3-wrap">
+                  <button id="fmt3_rescan_recent" class="menu_button">↻ Последний пакет</button>
+                  <button id="fmt3_reset_cursor" class="menu_button">Сброс курсора</button>
+                </div>
+                <div id="fmt3_scan_state" class="fmt3-hint"></div>
               </div>
-              <div id="fmt3_scan_state" class="fmt3-hint"></div>
-            </div>
+            </details>
 
-            <div class="fmt3-section">
-              <div class="fmt3-section-title">Инъекция памяти</div>
-              <label class="fmt3-check"><input id="fmt3_inject_enabled" type="checkbox"> Инъекция в промпт</label>
-              <div class="fmt3-grid2">
-                <label>Важность ≥
-                  <select id="fmt3_min_importance"><option value="high">High</option><option value="medium">Medium+</option><option value="low">Все</option></select>
-                </label>
-                <label>Макс. фактов<input id="fmt3_max_facts" type="number" min="1" max="200"></label>
+            <details class="fmt3-section">
+              <summary class="fmt3-section-title">💉 ИНЪЕКЦИЯ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-grid2">
+                  <label>Важность ≥
+                    <select id="fmt3_min_importance"><option value="high">High</option><option value="medium">Medium+</option><option value="low">Все</option></select>
+                  </label>
+                  <label>Макс. фактов<input id="fmt3_max_facts" type="number" min="1" max="200"></label>
+                </div>
+                <details class="fmt3-advanced"><summary>Шаблон промпта {{FACTS}}</summary><textarea id="fmt3_injection_template" rows="9"></textarea></details>
               </div>
-              <details class="fmt3-advanced"><summary>Шаблон инъекции</summary><textarea id="fmt3_injection_template" rows="9"></textarea></details>
-            </div>
+            </details>
 
-            <div class="fmt3-section">
-              <div class="fmt3-section-title">Флешбек</div>
-              <label class="fmt3-check"><input id="fmt3_auto_flashback" type="checkbox"> Автоматический флешбек</label>
-              <label>Шанс %<input id="fmt3_flashback_chance" type="number" min="0" max="100"></label>
-              <div class="fmt3-hint">Ручной флешбек запускается из карточки факта. Авто-флешбек выбирается перед следующим ответом.</div>
-            </div>
-
-            <details class="fmt3-section fmt3-advanced"><summary class="fmt3-section-title">Продвинутое: промпт сканера</summary><textarea id="fmt3_scanner_prompt" rows="15"></textarea></details>
-
-            <div class="fmt3-section">
-              <div class="fmt3-row fmt3-wrap">
-                <button id="fmt3_open_memory" class="menu_button">🧠 Открыть память</button>
-                <button id="fmt3_export" class="menu_button">Экспорт</button>
-                <button id="fmt3_import" class="menu_button">Импорт</button>
-                <input id="fmt3_import_file" type="file" accept="application/json,.json" hidden>
+            <details class="fmt3-section">
+              <summary class="fmt3-section-title">⚡ ФЛЕШБЕК</summary>
+              <div class="fmt3-section-body">
+                <label class="fmt3-check"><input id="fmt3_auto_flashback" type="checkbox"> Автоматический флешбек</label>
+                <label>Авто-шанс %<input id="fmt3_flashback_chance" type="number" min="0" max="100"></label>
+                <div class="fmt3-hint">Ручной флешбек запускается прямо из карточки факта.</div>
               </div>
-            </div>
+            </details>
+
+            <details class="fmt3-section" open>
+              <summary class="fmt3-section-title">🪶 ПОДКЛЮЧЕНИЕ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-row">
+                  <select id="fmt3_connection_profile"></select>
+                  <button id="fmt3_connections_refresh" class="menu_button" title="Обновить список">↻</button>
+                </div>
+                <div class="fmt3-row">
+                  <button id="fmt3_test_connection" class="menu_button">🪶 Тест соединения</button>
+                  <span id="fmt3_connection_status" class="fmt3-status"></span>
+                </div>
+                <div class="fmt3-hint">Используется уже сохранённый Connection Profile SillyTavern. Основное подключение RP не переключается.</div>
+              </div>
+            </details>
+
+            <details class="fmt3-section fmt3-advanced">
+              <summary class="fmt3-section-title">🧠 ПРОМПТ СКАНЕРА</summary>
+              <div class="fmt3-section-body"><textarea id="fmt3_scanner_prompt" rows="15"></textarea></div>
+            </details>
+
+            <section class="fmt3-section">
+              <div class="fmt3-section-body">
+                <div class="fmt3-row fmt3-wrap">
+                  <button id="fmt3_export" class="menu_button">⬇ Экспорт</button>
+                  <button id="fmt3_import" class="menu_button">⬆ Импорт</button>
+                  <input id="fmt3_import_file" type="file" accept="application/json,.json" hidden>
+                </div>
+              </div>
+            </section>
           </div>
         </div>`;
         host.appendChild(root);
@@ -844,7 +878,7 @@
         bubble.id = BUBBLE_ID;
         bubble.className = 'fmt3-bubble';
         bubble.type = 'button';
-        bubble.innerHTML = '<span>🧠</span><b id="fmt3_bubble_count">0</b>';
+        bubble.innerHTML = '<span class="fmt3-bubble-brain">🧠</span><b id="fmt3_bubble_count">0</b>';
         bubble.title = 'Память фактов';
         bubble.addEventListener('click', toggleMemoryPanel);
         document.body.appendChild(bubble);
@@ -857,22 +891,65 @@
         panel.className = 'fmt3-panel fmt3-hidden';
         panel.innerHTML = `
           <div class="fmt3-panel-head">
-            <div><b>🧠 Память фактов</b><div id="fmt3_panel_subtitle" class="fmt3-hint"></div></div>
-            <button id="fmt3_panel_close" class="fmt3-icon-btn">✕</button>
+            <div>
+              <div class="fmt3-panel-title-row"><span>🧠</span><span class="fmt3-panel-title">Память фактов</span></div>
+              <div id="fmt3_panel_subtitle" class="fmt3-panel-subline"></div>
+              <div id="fmt3_panel_injection" class="fmt3-panel-injection"></div>
+            </div>
+            <button id="fmt3_panel_close" class="fmt3-icon-btn" title="Закрыть">×</button>
           </div>
-          <div class="fmt3-panel-tools">
-            <input id="fmt3_fact_search" type="search" placeholder="Поиск по памяти…">
-            <select id="fmt3_fact_category"><option value="all">Все категории</option>${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}">${escapeHtml(v.label)}</option>`).join('')}</select>
-            <select id="fmt3_fact_status"><option value="active">Активные</option><option value="conflict">Конфликты</option><option value="all">Все</option></select>
+
+          <div class="fmt3-panel-body">
+            <div class="fmt3-panel-tools">
+              <input id="fmt3_fact_search" type="search" placeholder="Поиск по фактам…">
+              <select id="fmt3_fact_status"><option value="active">Активные</option><option value="conflict">Конфликты</option><option value="all">Все</option></select>
+            </div>
+
+            <select id="fmt3_fact_category" class="fmt3-hidden" aria-hidden="true">
+              <option value="all">Все категории</option>
+              ${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}">${escapeHtml(v.label)}</option>`).join('')}
+            </select>
+
+            <div id="fmt3_category_strip" class="fmt3-category-strip">
+              <button class="fmt3-category-pill" data-category="all" data-selected="true">Все</button>
+              ${Object.entries(CATEGORIES).map(([k,v]) => `<button class="fmt3-category-pill" data-category="${k}" title="${escapeHtml(v.short)}">${escapeHtml(v.label.split(' ')[0])}</button>`).join('')}
+            </div>
+
+            <div class="fmt3-panel-divider"></div>
+            <div id="fmt3_fact_grid" class="fmt3-fact-grid"></div>
           </div>
-          <div id="fmt3_fact_grid" class="fmt3-fact-grid"></div>`;
+
+          <div class="fmt3-panel-footer">
+            <button id="fmt3_panel_scan" class="fmt3-footer-scan">🔍 Скан</button>
+            <button id="fmt3_panel_rescan" class="fmt3-footer-rescan">↻ Пакет</button>
+            <button id="fmt3_panel_scanall" class="fmt3-footer-all">📚 Весь чат</button>
+            <button id="fmt3_panel_export" title="Экспорт">⬇</button>
+            <button id="fmt3_panel_import" title="Импорт">⬆</button>
+            <button id="fmt3_panel_close_bottom" class="fmt3-footer-close">Закрыть</button>
+          </div>`;
         document.body.appendChild(panel);
+
         panel.querySelector('#fmt3_panel_close').addEventListener('click', () => panel.classList.add('fmt3-hidden'));
+        panel.querySelector('#fmt3_panel_close_bottom').addEventListener('click', () => panel.classList.add('fmt3-hidden'));
         panel.querySelector('#fmt3_fact_search').addEventListener('input', renderFactsGrid);
-        panel.querySelector('#fmt3_fact_category').addEventListener('change', renderFactsGrid);
         panel.querySelector('#fmt3_fact_status').addEventListener('change', renderFactsGrid);
+        panel.querySelector('#fmt3_fact_category').addEventListener('change', renderFactsGrid);
+        panel.querySelector('#fmt3_category_strip').addEventListener('click', event => {
+            const button = event.target.closest('button[data-category]');
+            if (!button) return;
+            const value = button.dataset.category || 'all';
+            const select = panel.querySelector('#fmt3_fact_category');
+            if (select) select.value = value;
+            panel.querySelectorAll('.fmt3-category-pill').forEach(x => x.dataset.selected = String(x === button));
+            renderFactsGrid();
+        });
         panel.querySelector('#fmt3_fact_grid').addEventListener('click', handleFactGridClick);
         panel.querySelector('#fmt3_fact_grid').addEventListener('change', handleFactGridChange);
+        panel.querySelector('#fmt3_panel_scan').addEventListener('click', () => scanPending({ manual: true }));
+        panel.querySelector('#fmt3_panel_rescan').addEventListener('click', rescanRecent);
+        panel.querySelector('#fmt3_panel_scanall').addEventListener('click', scanWholeChat);
+        panel.querySelector('#fmt3_panel_export').addEventListener('click', exportMemory);
+        panel.querySelector('#fmt3_panel_import').addEventListener('click', () => document.getElementById('fmt3_import_file')?.click());
     }
 
     function toggleMemoryPanel() {
@@ -931,6 +1008,12 @@
 
         document.getElementById('fmt3_bind_scope').checked = g.scopeBindings[currentScopeKey()] === p.id;
         document.getElementById('fmt3_chat_binding').textContent = `Чат: ${ctx()?.chatId || 'не определён'} · профиль меняется автоматически вместе с чатом.`;
+        const widgetEnabled = document.getElementById('fmt3_widget_enabled');
+        const widgetScale = document.getElementById('fmt3_widget_scale');
+        const widgetScaleValue = document.getElementById('fmt3_widget_scale_value');
+        if (widgetEnabled) widgetEnabled.checked = g.widgetEnabled !== false;
+        if (widgetScale) widgetScale.value = Number(g.widgetScale || 100);
+        if (widgetScaleValue) widgetScaleValue.textContent = `${Number(g.widgetScale || 100)}%`;
         document.getElementById('fmt3_auto_scan').checked = !!p.autoScan;
         document.getElementById('fmt3_auto_every').value = p.autoScanEvery;
         document.getElementById('fmt3_batch_size').value = p.batchSize;
@@ -973,10 +1056,22 @@
         facts.sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || b.updatedAt - a.updatedAt);
 
         const subtitle = document.getElementById('fmt3_panel_subtitle');
-        if (subtitle) subtitle.textContent = `${memoryProfile()?.name || ''} · ${st.facts.length} записей`;
+        const activeCount = st.facts.filter(f => f.status === 'active' && f.enabled !== false).length;
+        if (subtitle) subtitle.textContent = `${memoryProfile()?.name || ''} · ${st.facts.length} фактов · ${activeCount} активных`;
+
+        const injectionLine = document.getElementById('fmt3_panel_injection');
+        if (injectionLine) {
+            const p = memoryProfile();
+            const minRank = importanceRank(p?.minImportance || 'medium');
+            const injected = st.facts.filter(f => f.status === 'active' && f.enabled !== false && importanceRank(f.importance) >= minRank).slice(0, Number(p?.maxInjectedFacts || 30)).length;
+            injectionLine.dataset.on = String(!!p?.injectEnabled && injected > 0);
+            injectionLine.textContent = p?.injectEnabled
+                ? (injected ? `Инъекция активна · в промпт попадёт до ${injected} фактов` : 'Инъекция пуста — нет активных фактов выше порога')
+                : 'Инъекция выключена';
+        }
 
         if (!facts.length) {
-            grid.innerHTML = '<div class="fmt3-empty">Здесь пока нет подходящих фактов.</div>';
+            grid.innerHTML = '<div class="fmt3-empty">Нажмите 🔍 Скан — AI извлечёт важное из истории чата.</div>';
             return;
         }
         grid.innerHTML = facts.map(f => {
@@ -1056,6 +1151,21 @@
 
     function bindSettingsEvents() {
         const byId = id => document.getElementById(id);
+
+        byId('fmt3_widget_enabled')?.addEventListener('change', e => {
+            const g = globalSettings();
+            g.widgetEnabled = !!e.target.checked;
+            saveGlobal();
+            updateBubble();
+        });
+        byId('fmt3_widget_scale')?.addEventListener('input', e => {
+            const g = globalSettings();
+            g.widgetScale = Number(e.target.value || 100);
+            const out = byId('fmt3_widget_scale_value');
+            if (out) out.textContent = `${g.widgetScale}%`;
+            saveGlobal();
+            updateBubble();
+        });
 
         byId('fmt3_memory_profile').addEventListener('change', async e => {
             const st = chatState();
