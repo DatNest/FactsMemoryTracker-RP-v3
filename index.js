@@ -34,7 +34,7 @@
     };
 
 
-    const STRICT_MEMORY_POLICY = `ЖЁСТКИЙ РЕЖИМ КУРАЦИИ ПАМЯТИ.
+    const DEFAULT_CURATION_PROMPT = `ЖЁСТКИЙ РЕЖИМ КУРАЦИИ ПАМЯТИ.
 Память — НЕ конспект сюжета и НЕ хроника каждого события. Она должна хранить минимальный набор устойчивых фактов, без которых будущая сцена может стать противоречивой, забыть важное знание, обещание, последствие или незакрытую линию.
 
 ПЕРЕД ДОБАВЛЕНИЕМ КАЖДОГО ITEM мысленно проверь:
@@ -90,8 +90,8 @@ LOW — второстепенная, но потенциально полезн
 ПОРЯДОК ВЫВОДА:
 Сначала самые долгосрочно важные items. Не заполняй лимит ради количества.`;
 
-    const MAX_NEW_ITEMS_NORMAL = 4;
-    const MAX_NEW_ITEMS_BACKFILL = 3;
+    const DEFAULT_MAX_NEW_ITEMS_NORMAL = 4;
+    const DEFAULT_MAX_NEW_ITEMS_BACKFILL = 3;
 
     const DEFAULT_INJECTION_TEMPLATE = `[ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]\nНиже находятся сохранённые факты, уже установленные в сыгранной истории. Используй их для непрерывности сюжета, персонажей, отношений и последствий прошлых событий.\n\n{{FACTS}}\n\nПРАВИЛА:\n— Факт истории НЕ является автоматически знанием каждого персонажа. Учитывай поле «знают».\n— Не раскрывай секреты персонажам только потому, что они находятся в памяти.\n— Не заставляй персонажей вспоминать факты без естественной причины.\n— Более новые явно сыгранные события имеют приоритет над устаревшими.\n— Не достраивай отсутствующие детали и не превращай догадки в факты.\n— Несс управляется пользователем: не придумывай за неё новые мысли, чувства, решения, согласие или действия.\n— Не упоминай существование этого блока памяти в ролевом ответе.\n[/ПАМЯТЬ СЫГРАННОЙ ИСТОРИИ]`;
 
@@ -177,6 +177,9 @@ LOW — второстепенная, но потенциально полезн
         batchSize: 12,
         overlap: 2,
         maxOutputTokens: 4096,
+        maxNewItemsNormal: DEFAULT_MAX_NEW_ITEMS_NORMAL,
+        maxNewItemsBackfill: DEFAULT_MAX_NEW_ITEMS_BACKFILL,
+        curationPrompt: DEFAULT_CURATION_PROMPT,
         injectEnabled: true,
         minImportance: 'medium',
         maxInjectedFacts: 30,
@@ -804,11 +807,13 @@ LOW — второстепенная, но потенциально полезн
         }
 
         const loreReference = await getActiveLoreReference(start, end);
+        const normalNewLimit = Math.max(0, Math.min(20, Number(profile.maxNewItemsNormal ?? DEFAULT_MAX_NEW_ITEMS_NORMAL)));
+        const backfillNewLimit = Math.max(0, Math.min(20, Number(profile.maxNewItemsBackfill ?? DEFAULT_MAX_NEW_ITEMS_BACKFILL)));
         const modeNote = backfill
-            ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Сжимай особенно агрессивно: максимум ${MAX_NEW_ITEMS_BACKFILL} действительно долговечных NEW-факта на этот пакет; предпочитай итог эпизода деталям.`
-            : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${MAX_NEW_ITEMS_NORMAL} действительно долговечных NEW-факта на этот пакет; нормальный результат часто 0–2.`;
+            ? `РЕЖИМ: BACKFILL / ВЕСЬ ЧАТ. Это ретроспективное заполнение памяти. Сжимай особенно агрессивно: максимум ${backfillNewLimit} действительно долговечных NEW-факта на этот пакет; предпочитай итог эпизода деталям.`
+            : `РЕЖИМ: ИНКРЕМЕНТАЛЬНЫЙ. Максимум ${normalNewLimit} действительно долговечных NEW-факта на этот пакет; нормальный результат часто 0–2.`;
         const userPrompt = `${modeNote}\n\nАКТИВНЫЙ ЛОРБУК / БАЗОВЫЕ ФАКТЫ (REFERENCE ONLY; НЕ СОХРАНЯЙ ИХ ПОВТОРНО):\n${loreReference}\n\nСУЩЕСТВУЮЩАЯ ПАМЯТЬ (ID нужны для UPDATE/DUPLICATE/CONTRADICTS):\n${formatExistingFactsForScanner()}\n\nНОВЫЕ СООБЩЕНИЯ ДЛЯ СКАНА (${start}–${end}):\n${transcript}`;
-        const scannerSystemPrompt = `${STRICT_MEMORY_POLICY}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}`;
+        const scannerSystemPrompt = `${profile.curationPrompt || DEFAULT_CURATION_PROMPT}\n\n${profile.scannerPrompt || DEFAULT_SCANNER_PROMPT}`;
         let raw;
         try {
             raw = await callProfile([
@@ -842,7 +847,7 @@ LOW — второстепенная, но потенциально полезн
             }
         }
         const items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
-        const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n), { newLimit: backfill ? MAX_NEW_ITEMS_BACKFILL : MAX_NEW_ITEMS_NORMAL });
+        const result = applyScannerItems(items, Array.from({ length: Math.max(0, end - start + 1) }, (_, n) => start + n), { newLimit: backfill ? backfillNewLimit : normalNewLimit });
         if (result.added || result.updated || result.conflicts) await saveProfileMemory();
 
         if (updateCursor) {
@@ -856,7 +861,7 @@ LOW — второстепенная, но потенциально полезн
         return result;
     }
 
-    function applyScannerItems(items, sourceFallback, { newLimit = MAX_NEW_ITEMS_NORMAL } = {}) {
+    function applyScannerItems(items, sourceFallback, { newLimit = DEFAULT_MAX_NEW_ITEMS_NORMAL } = {}) {
         const facts = profileFacts();
         const byId = new Map(facts.map(f => [f.id, f]));
         let added = 0, updated = 0, conflicts = 0;
@@ -1227,6 +1232,11 @@ LOW — второстепенная, но потенциально полезн
                   <label>Перекрытие<input id="fmt3_overlap" type="number" min="0" max="10"></label>
                   <label>Max tokens<input id="fmt3_max_tokens" type="number" min="256" max="16384" step="256"></label>
                 </div>
+                <div class="fmt3-grid2">
+                  <label>Макс. NEW / пакет<input id="fmt3_max_new_normal" type="number" min="0" max="20"></label>
+                  <label>Макс. NEW / весь чат<input id="fmt3_max_new_backfill" type="number" min="0" max="20"></label>
+                </div>
+                <div class="fmt3-hint">Эти лимиты и правила курации ниже можно менять без обновления файлов расширения.</div>
                 <div class="fmt3-row fmt3-wrap">
                   <button id="fmt3_rescan_recent" class="menu_button">↻ Последний пакет</button>
                   <button id="fmt3_reset_cursor" class="menu_button">Сброс курсора</button>
@@ -1273,8 +1283,21 @@ LOW — второстепенная, но потенциально полезн
             </details>
 
             <details class="fmt3-section fmt3-advanced">
-              <summary class="fmt3-section-title">🧠 ПРОМПТ СКАНЕРА</summary>
-              <div class="fmt3-section-body"><textarea id="fmt3_scanner_prompt" rows="15"></textarea></div>
+              <summary class="fmt3-section-title">🎛 ПРАВИЛА КУРАЦИИ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-hint">Это главный поведенческий промпт памяти. Будущую точность, причинность, важность и правила гипотез правь здесь — без замены файлов.</div>
+                <textarea id="fmt3_curation_prompt" rows="18"></textarea>
+                <div class="fmt3-row"><button id="fmt3_reset_curation_prompt" class="menu_button">↺ Сбросить правила по умолчанию</button></div>
+              </div>
+            </details>
+
+            <details class="fmt3-section fmt3-advanced">
+              <summary class="fmt3-section-title">🧠 ПРОМПТ СКАНЕРА / ФОРМАТ</summary>
+              <div class="fmt3-section-body">
+                <div class="fmt3-hint">Здесь задача извлечения и JSON-схема. Обычно менять не нужно.</div>
+                <textarea id="fmt3_scanner_prompt" rows="15"></textarea>
+                <div class="fmt3-row"><button id="fmt3_reset_scanner_prompt" class="menu_button">↺ Сбросить промпт сканера</button></div>
+              </div>
             </details>
 
             <section class="fmt3-section">
@@ -1466,6 +1489,8 @@ LOW — второстепенная, но потенциально полезн
         document.getElementById('fmt3_batch_size').value = p.batchSize;
         document.getElementById('fmt3_overlap').value = p.overlap;
         document.getElementById('fmt3_max_tokens').value = p.maxOutputTokens;
+        document.getElementById('fmt3_max_new_normal').value = p.maxNewItemsNormal ?? DEFAULT_MAX_NEW_ITEMS_NORMAL;
+        document.getElementById('fmt3_max_new_backfill').value = p.maxNewItemsBackfill ?? DEFAULT_MAX_NEW_ITEMS_BACKFILL;
         document.getElementById('fmt3_auto_marker').checked = !!p.autoMarker;
         document.getElementById('fmt3_inject_enabled').checked = !!p.injectEnabled;
         document.getElementById('fmt3_min_importance').value = p.minImportance;
@@ -1473,6 +1498,7 @@ LOW — второстепенная, но потенциально полезн
         document.getElementById('fmt3_injection_template').value = p.injectionTemplate;
         document.getElementById('fmt3_auto_flashback').checked = !!p.autoFlashback;
         document.getElementById('fmt3_flashback_chance').value = p.autoFlashbackChance;
+        document.getElementById('fmt3_curation_prompt').value = p.curationPrompt || DEFAULT_CURATION_PROMPT;
         document.getElementById('fmt3_scanner_prompt').value = p.scannerPrompt;
         document.getElementById('fmt3_scan_state').textContent = `Последнее обработанное сообщение: ${st.lastScannedMessageIndex} / ${(ctx()?.chat || []).length - 1}${st.scanDirty ? ' · ⚠ история редактировалась, хвост будет пересканирован' : ''}`;
         refreshConnectionProfilesUI();
@@ -1800,6 +1826,8 @@ LOW — второстепенная, но потенциально полезн
         byId('fmt3_batch_size').addEventListener('change', e => updateCurrentProfile('batchSize', Number(e.target.value)));
         byId('fmt3_overlap').addEventListener('change', e => updateCurrentProfile('overlap', Number(e.target.value)));
         byId('fmt3_max_tokens').addEventListener('change', e => updateCurrentProfile('maxOutputTokens', Number(e.target.value)));
+        byId('fmt3_max_new_normal').addEventListener('change', e => updateCurrentProfile('maxNewItemsNormal', Math.max(0, Math.min(20, Number(e.target.value)))));
+        byId('fmt3_max_new_backfill').addEventListener('change', e => updateCurrentProfile('maxNewItemsBackfill', Math.max(0, Math.min(20, Number(e.target.value)))));
         byId('fmt3_auto_marker').addEventListener('change', e => updateCurrentProfile('autoMarker', e.target.checked));
         byId('fmt3_inject_enabled').addEventListener('change', e => updateCurrentProfile('injectEnabled', e.target.checked, true));
         byId('fmt3_min_importance').addEventListener('change', e => updateCurrentProfile('minImportance', e.target.value, true));
@@ -1807,7 +1835,16 @@ LOW — второстепенная, но потенциально полезн
         byId('fmt3_injection_template').addEventListener('change', e => updateCurrentProfile('injectionTemplate', e.target.value, true));
         byId('fmt3_auto_flashback').addEventListener('change', e => updateCurrentProfile('autoFlashback', e.target.checked));
         byId('fmt3_flashback_chance').addEventListener('change', e => updateCurrentProfile('autoFlashbackChance', Number(e.target.value)));
+        byId('fmt3_curation_prompt').addEventListener('change', e => updateCurrentProfile('curationPrompt', e.target.value));
         byId('fmt3_scanner_prompt').addEventListener('change', e => updateCurrentProfile('scannerPrompt', e.target.value));
+        byId('fmt3_reset_curation_prompt').addEventListener('click', () => {
+            if (!window.confirm('Сбросить правила курации этого профиля к встроенному шаблону?')) return;
+            updateCurrentProfile('curationPrompt', DEFAULT_CURATION_PROMPT);
+        });
+        byId('fmt3_reset_scanner_prompt').addEventListener('click', () => {
+            if (!window.confirm('Сбросить промпт сканера этого профиля к встроенному шаблону?')) return;
+            updateCurrentProfile('scannerPrompt', DEFAULT_SCANNER_PROMPT);
+        });
 
         byId('fmt3_scan_pending').addEventListener('click', () => scanPending({ manual: true }));
         byId('fmt3_rescan_recent').addEventListener('click', rescanRecent);
